@@ -11,6 +11,14 @@ async function bootstrap() {
   // Bật CORS cho phép Web kết nối
   app.enableCors();
 
+  // Ngăn chặn cache trình duyệt đối với các API endpoint
+  app.use((req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
+
   // Bật ValidationPipe toàn cục để tự động kiểm tra DTO
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true, // Tự động loại bỏ các field không có trong DTO

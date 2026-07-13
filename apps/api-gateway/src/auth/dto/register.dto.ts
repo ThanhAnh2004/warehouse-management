@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, IsOptional, IsEmail } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsOptional, IsEmail, Matches, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -13,28 +13,30 @@ export class RegisterDto {
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   password: string;
 
-  @ApiProperty({ required: false, example: 'John Doe' })
+  @ApiProperty({ example: 'John Doe' })
   @IsString()
-  @IsOptional()
-  fullname?: string;
+  @IsNotEmpty({ message: 'Full name cannot be empty' })
+  fullname: string;
 
   @ApiProperty({ required: false, example: 'Manager' })
   @IsString()
   @IsOptional()
   role?: string;
 
-  @ApiProperty({ required: false, example: '123 Main St' })
+  @ApiProperty({ example: '123 Main St' })
   @IsString()
-  @IsOptional()
-  address?: string;
+  @IsNotEmpty({ message: 'Address cannot be empty' })
+  address: string;
 
-  @ApiProperty({ required: false, example: '0123456789' })
+  @ApiProperty({ example: '0123456789' })
   @IsString()
-  @IsOptional()
-  phone?: string;
+  @IsNotEmpty({ message: 'Phone cannot be empty' })
+  @Matches(/^[0-9]{10,11}$/, { message: 'Phone must be between 10 and 11 digits' })
+  phone: string;
 
-  @ApiProperty({ required: false, example: 'Male' })
+  @ApiProperty({ example: 'Male' })
   @IsString()
-  @IsOptional()
-  gender?: string;
+  @IsNotEmpty({ message: 'Gender cannot be empty' })
+  @IsIn(['Male', 'Female'], { message: 'Gender must be Male or Female' })
+  gender: string;
 }

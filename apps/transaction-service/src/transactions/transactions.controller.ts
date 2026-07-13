@@ -13,8 +13,8 @@ export class TransactionsController {
   }
 
   @MessagePattern('transaction.findAll')
-  findAll() {
-    return this.transactionsService.findAll();
+  findAll(@Payload() payload: any = {}) {
+    return this.transactionsService.findAll(payload);
   }
 
   @MessagePattern('transaction.findByProduct')
