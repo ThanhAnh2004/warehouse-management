@@ -4,7 +4,10 @@ import { firstValueFrom } from 'rxjs';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { Roles } from './common/decorators/roles.decorator';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Users')
+@ApiBearerAuth('JWT-auth')
 @Controller('users')
 @UseGuards(AuthGuard, RolesGuard) // Bảo mật bằng AuthGuard (kiểm tra JWT) và RolesGuard (kiểm tra quyền)
 export class UsersController {

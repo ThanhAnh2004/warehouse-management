@@ -7,17 +7,16 @@ import * as bcrypt from 'bcryptjs';
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
-    // Tiêm UsersService từ UsersModule để thao tác với User dữ liệu
     private readonly usersService: UsersService,
   ) {}
 
   async register(data: any) {
-    const { username, password, fullName, role } = data;
+    const { email, password, fullname, role, address, phone, gender } = data;
     
     // Kiểm tra xem user đã tồn tại chưa qua UsersService
-    const existingUser = await this.usersService.findOneByUsername(username);
+    const existingUser = await this.usersService.findOneByEmail(email);
     if (existingUser) {
-      return { success: false, message: 'Username already exists' };
+      return { success: false, message: 'Email already exists' };
     }
 
     // Hash mật khẩu
@@ -25,20 +24,25 @@ export class AuthService {
     
     // Tạo user mới qua UsersService
     const newUser = await this.usersService.create({
-      username,
+      email,
       password: hashedPassword,
-      fullName,
+      fullname,
       role: role || 'Staff', // Mặc định là Staff nếu không truyền
+      address,
+      phone,
+      gender,
+      createdBy: 'system',
+      updatedBy: 'system'
     });
 
     return { success: true, message: 'User registered successfully', userId: newUser.id };
   }
 
   async login(data: any) {
-    const { username, password } = data;
+    const { email, password } = data;
     
     // Tìm user qua UsersService
-    const user = await this.usersService.findOneByUsername(username);
+    const user = await this.usersService.findOneByEmail(email);
     if (!user) {
       return { success: false, message: 'Invalid credentials' };
     }
@@ -50,7 +54,12 @@ export class AuthService {
     }
 
     // Tạo JWT token đính kèm role
-    const payload = { username: user.username, sub: user.id, role: user.role };
+    const payload = { 
+      email: user.email, 
+      sub: user.id, 
+      role: user.role,
+      fullname: user.fullname 
+    };
     const token = this.jwtService.sign(payload);
 
     return { success: true, token };

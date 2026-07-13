@@ -12,20 +12,20 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    // Nếu API không yêu cầu quyền gì đặc biệt (không gắn @Roles) -> Cho phép
-    if (!requiredRoles) {
-      return true;
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true; // No specific roles required
     }
 
     const { user } = context.switchToHttp().getRequest();
     
+    // AuthGuard ensures user is attached. If no user, or no role, forbid.
     if (!user || !user.role) {
-      throw new ForbiddenException('User role not found');
+      throw new ForbiddenException('You do not have permission (No role assigned)');
     }
 
     const hasRole = requiredRoles.includes(user.role);
     if (!hasRole) {
-      throw new ForbiddenException('You do not have permission to access this resource');
+       throw new ForbiddenException(`You do not have permission. Requires one of: ${requiredRoles.join(', ')}`);
     }
 
     return true;

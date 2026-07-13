@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  # Databases
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: warehouse_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - wms_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: warehouse_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: warehouse_identity
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wms_network
+
+  mongodb:
+    image: mongo:6
+    container_name: warehouse_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - wms_network
+
+  # NestJS Services
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: api-gateway
+    container_name: warehouse_api_gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - identity-service
+      - inventory-service
+      - transaction-service
+      - notification-service
+      - reporting-service
+    env_file: .env
+    networks:
+      - wms_network
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: identity-service
+    container_name: warehouse_identity_service
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres
+    env_file: .env
+    networks:
+      - wms_network
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: inventory-service
+    container_name: warehouse_inventory_service
+    ports:
+      - "8002:8002"
+    depends_on:
+      - postgres
+    env_file: .env
+    networks:
+      - wms_network
+
+  transaction-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: transaction-service
+    container_name: warehouse_transaction_service
+    ports:
+      - "8003:8003"
+    depends_on:
+      - postgres
+    env_file: .env
+    networks:
+      - wms_network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: notification-service
+    container_name: warehouse_notification_service
+    ports:
+      - "3004:3004"
+    depends_on:
+      - mongodb
+    env_file: .env
+    networks:
+      - wms_network
+
+  reporting-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: reporting-service
+    container_name: warehouse_reporting_service
+    ports:
+      - "3005:3005"
+    env_file: .env
+    networks:
+      - wms_network
+
+  # Python Service
+  forecasting-service:
+    build:
+      context: ./apps/forecasting-service
+      dockerfile: Dockerfile
+    container_name: warehouse_forecasting_service
+    ports:
+      - "8004:8004"
+    depends_on:
+      - postgres
+    env_file: .env
+    networks:
+      - wms_network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: warehouse_frontend
+    ports:
+      - "5173:80" # Maps localhost:5173 to nginx:80
+    networks:
+      - wms_network
+
+networks:
+  wms_network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+  postgres_data:
+  mongodb_data:

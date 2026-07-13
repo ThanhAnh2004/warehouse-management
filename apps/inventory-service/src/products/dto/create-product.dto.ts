@@ -20,4 +20,11 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   unit?: string;
+
+  @IsOptional()
+  price?: number;
+
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
 }

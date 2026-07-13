@@ -1,15 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Inventory } from './entities/inventory.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
-import { RpcException } from '@nestjs/microservices';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 
 @Injectable()
 export class StockService {
+  private readonly logger = new Logger(StockService.name);
+
   constructor(
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
   async getStock(productId: string): Promise<Inventory[]> {
@@ -34,7 +37,9 @@ export class StockService {
         location,
         currentQuantity: quantityChange,
       });
-      return this.inventoryRepository.save(inventory);
+      const savedNew = await this.inventoryRepository.save(inventory);
+      this.checkAndEmitAlert(productId, savedNew.currentQuantity);
+      return savedNew;
     }
 
     if (inventory.currentQuantity + quantityChange < 0) {
@@ -42,6 +47,19 @@ export class StockService {
     }
 
     inventory.currentQuantity += quantityChange;
-    return this.inventoryRepository.save(inventory);
+    const savedUpdate = await this.inventoryRepository.save(inventory);
+    this.checkAndEmitAlert(productId, savedUpdate.currentQuantity);
+    return savedUpdate;
+  }
+
+  private checkAndEmitAlert(productId: string, currentQuantity: number) {
+    if (currentQuantity < 20) {
+      this.logger.log(`Stock below 20 for ${productId}, emitting alert.`);
+      this.notificationClient.emit('product.stock.changed', { 
+        productId, 
+        productName: `Product ID: ${productId}`, // Lấy tên thật nếu có join, tạm dùng ID
+        newStock: currentQuantity 
+      });
+    }
   }
 }

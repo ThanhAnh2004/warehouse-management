@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -25,8 +25,23 @@ export class ProductsService {
     }
   }
 
-  async findAll(): Promise<Product[]> {
-    return this.productRepository.find();
+  async findAll(page: number = 1, limit: number = 10, search: string = ''): Promise<{ data: Product[], total: number, page: number, limit: number }> {
+    const skip = (page - 1) * limit;
+    const where = search ? { name: ILike(`%${search}%`) } : {};
+    
+    const [data, total] = await this.productRepository.findAndCount({
+      where,
+      take: limit,
+      skip,
+      order: { createdAt: 'DESC' }
+    });
+
+    return {
+      data,
+      total,
+      page,
+      limit
+    };
   }
 
   async findBySku(sku: string): Promise<Product> {

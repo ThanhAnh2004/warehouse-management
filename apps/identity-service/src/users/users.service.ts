@@ -21,9 +21,9 @@ export class UsersService {
     return await this.userModel.find().select('-password').exec();
   }
 
-  // Tìm một người dùng theo Username (phục vụ Auth)
-  async findOneByUsername(username: string) {
-    return await this.userModel.findOne({ username }).exec();
+  // Tìm một người dùng theo Email (phục vụ Auth)
+  async findOneByEmail(email: string) {
+    return await this.userModel.findOne({ email }).exec();
   }
 
   // Tìm một người dùng theo ID
@@ -33,8 +33,8 @@ export class UsersService {
 
   // Cập nhật thông tin người dùng
   async update(id: string, updateData: any) {
-    // Loại bỏ không cho sửa username và password qua hàm này
-    const { username: _, password: __, ...allowedUpdates } = updateData;
+    // Loại bỏ không cho sửa email và password qua hàm này
+    const { email: _, password: __, ...allowedUpdates } = updateData;
     
     const updatedUser = await this.userModel.findByIdAndUpdate(
       id,
