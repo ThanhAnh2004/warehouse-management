@@ -27,10 +27,21 @@ export class TransactionsController {
 
   @Get()
   @Roles('Admin', 'Manager', 'Staff')
-  getTransactions(@Query('productId') productId: string) {
-    if (productId) {
-      return this.transactionClient.send('transaction.findByProduct', productId);
-    }
-    return this.transactionClient.send('transaction.findAll', {});
+  getTransactions(
+    @Query('productId') productId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
+    return this.transactionClient.send('transaction.findAll', {
+      productId,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+      search: search || '',
+      sortBy: sortBy || 'createdAt',
+      sortOrder: sortOrder || 'DESC'
+    });
   }
 }

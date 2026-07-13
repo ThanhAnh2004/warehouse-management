@@ -31,6 +31,11 @@ export class UsersService {
     return await this.userModel.findById(id).select('-password').exec();
   }
 
+  // Tìm một người dùng theo ID kèm mật khẩu
+  async findOneWithPassword(id: string) {
+    return await this.userModel.findById(id).exec();
+  }
+
   // Cập nhật thông tin người dùng
   async update(id: string, updateData: any) {
     // Loại bỏ không cho sửa email và password qua hàm này
@@ -56,5 +61,15 @@ export class UsersService {
       return { success: false, message: 'User not found' };
     }
     return { success: true, message: 'User deleted successfully' };
+  }
+
+  // Update refresh token
+  async updateRefreshToken(id: string, refreshToken: string | null) {
+    return await this.userModel.findByIdAndUpdate(id, { refreshToken }, { new: true }).exec();
+  }
+
+  // Find user by refresh token
+  async findOneByRefreshToken(refreshToken: string) {
+    return await this.userModel.findOne({ refreshToken }).exec();
   }
 }

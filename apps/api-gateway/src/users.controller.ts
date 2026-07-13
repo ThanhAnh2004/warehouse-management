@@ -6,6 +6,8 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { Roles } from './common/decorators/roles.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+import { UpdateUserDto } from './auth/dto/update-user.dto';
+
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
 @Controller('users')
@@ -27,7 +29,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateData: any) {
+  async update(@Param('id') id: string, @Body() updateData: UpdateUserDto) {
     return await firstValueFrom(this.identityClient.send('users.update', { id, updateData }));
   }
 

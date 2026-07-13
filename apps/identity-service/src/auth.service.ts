@@ -62,7 +62,48 @@ export class AuthService {
     };
     const token = this.jwtService.sign(payload);
 
-    return { success: true, token };
+    // Tạo refresh token
+    const refreshToken = require('crypto').randomUUID();
+    await this.usersService.updateRefreshToken(user.id, refreshToken);
+
+    return { success: true, token, refreshToken };
+  }
+
+  async refresh(data: { refreshToken: string }) {
+    if (!data.refreshToken) {
+      return { success: false, message: 'Refresh token is required' };
+    }
+
+    const user = await this.usersService.findOneByRefreshToken(data.refreshToken);
+    if (!user) {
+      return { success: false, message: 'Invalid refresh token' };
+    }
+
+    // Tạo token mới
+    const payload = { 
+      email: user.email, 
+      sub: user.id, 
+      role: user.role,
+      fullname: user.fullname 
+    };
+    const token = this.jwtService.sign(payload);
+
+    return { success: true, token, refreshToken: data.refreshToken };
+  }
+
+  async logout(data: { userId?: string, refreshToken?: string }) {
+    let user: any = null;
+    if (data.userId) {
+      user = await this.usersService.findOne(data.userId);
+    } else if (data.refreshToken) {
+      user = await this.usersService.findOneByRefreshToken(data.refreshToken);
+    }
+
+    if (user) {
+      await this.usersService.updateRefreshToken(user.id, null);
+    }
+
+    return { success: true, message: 'Logged out successfully' };
   }
 
   verifyToken(data: { token: string }) {
@@ -73,5 +114,24 @@ export class AuthService {
     } catch (error) {
       return { success: false, message: 'Invalid or expired token' };
     }
+  }
+
+  async changePassword(data: any) {
+    const { userId, oldPassword, newPassword } = data;
+    const user = await this.usersService.findOneWithPassword(userId);
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+    if (!isPasswordValid) {
+      return { success: false, message: 'Invalid old password' };
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedNewPassword;
+    await user.save();
+
+    return { success: true, message: 'Password changed successfully' };
   }
 }

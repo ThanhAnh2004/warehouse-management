@@ -21,16 +21,19 @@ export class ReportingServiceService {
     const products = inventoryData.data || [];
     const totalProducts = products.length;
     const totalInventoryValue = products.reduce((acc, p) => acc + (p.price || 0), 0); // Simplified value
+    const lowStock = products.filter(p => (p.quantity || 0) < 20).length;
 
     // 2. Fetch all transactions
     let transactionsData;
     try {
-      transactionsData = await firstValueFrom(this.transactionClient.send('transaction.findAll', {}));
+      transactionsData = await firstValueFrom(this.transactionClient.send('transaction.findAll', { limit: 100000 }));
     } catch (e) {
       transactionsData = [];
     }
 
-    const transactions = Array.isArray(transactionsData) ? transactionsData : [];
+    const transactions = Array.isArray(transactionsData) 
+      ? transactionsData 
+      : (transactionsData && Array.isArray(transactionsData.data) ? transactionsData.data : []);
     const totalImports = transactions.filter(t => t.type === 'INBOUND').reduce((acc, t) => acc + t.quantity, 0);
     const totalExports = transactions.filter(t => t.type === 'OUTBOUND').reduce((acc, t) => acc + t.quantity, 0);
 
@@ -39,6 +42,7 @@ export class ReportingServiceService {
       totalInventoryValue,
       totalImports,
       totalExports,
+      lowStock,
       reportDate: new Date().toISOString()
     };
   }
