@@ -133,7 +133,20 @@ services:
     networks:
       - wms_network
 
-  # Python Service
+  # Python Services
+  data-processing-service:
+    build:
+      context: ./apps/data-processing-service
+      dockerfile: Dockerfile
+    container_name: warehouse_data_processing_service
+    ports:
+      - "8005:8005"
+    depends_on:
+      - postgres
+    env_file: .env
+    networks:
+      - wms_network
+
   forecasting-service:
     build:
       context: ./apps/forecasting-service
@@ -143,6 +156,7 @@ services:
       - "8004:8004"
     depends_on:
       - postgres
+      - data-processing-service
     env_file: .env
     networks:
       - wms_network

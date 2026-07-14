@@ -19,4 +19,10 @@ export class ReportsController {
   getSummaryReport() {
     return this.reportingClient.send('report.get_summary', {});
   }
+
+  @Get('analytics')
+  @Roles('Admin', 'Manager')
+  getAnalyticsReport() {
+    return this.reportingClient.send('report.get_analytics', {});
+  }
 }

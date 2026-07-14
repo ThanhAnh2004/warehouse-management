@@ -10,4 +10,9 @@ export class ReportingServiceController {
   async getSummaryReport() {
     return this.reportingService.getSummaryReport();
   }
+
+  @MessagePattern('report.get_analytics')
+  async getAnalyticsReport() {
+    return this.reportingService.getAnalyticsReport();
+  }
 }

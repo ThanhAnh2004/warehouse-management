@@ -3,12 +3,13 @@ import { StockService } from './stock.service';
 import { StockController } from './stock.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Inventory } from './entities/inventory.entity';
+import { Product } from '../products/entities/product.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Inventory]),
+    TypeOrmModule.forFeature([Inventory, Product]),
     ClientsModule.registerAsync([
       {
         name: 'NOTIFICATION_SERVICE',
@@ -17,6 +18,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           options: {
             host: '127.0.0.1',
             port: 3004,
+          },
+        }),
+      },
+      {
+        name: 'TRANSACTION_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
+            port: configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
           },
         }),
       },

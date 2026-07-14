@@ -27,4 +27,10 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @IsOptional()
+  orderingCost?: number;
+
+  @IsOptional()
+  holdingCostRate?: number;
 }

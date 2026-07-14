@@ -26,6 +26,7 @@ export class UsersController {
     return await firstValueFrom(this.identityClient.send('users.findOne', { id }));
   }
 
+  @Roles('Admin') // Chỉ Admin mới được cập nhật vai trò/thông tin user khác
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateData: any) {
     return await firstValueFrom(this.identityClient.send('users.update', { id, updateData }));

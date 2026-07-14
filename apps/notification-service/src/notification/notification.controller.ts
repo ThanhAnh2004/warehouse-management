@@ -7,7 +7,7 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @EventPattern('product.stock.changed')
-  async handleStockChanged(@Payload() data: { productId: string, productName: string, newStock: number }) {
+  async handleStockChanged(@Payload() data: { productId: string, productName: string, newStock: number, eoq?: number }) {
     await this.notificationService.checkAndCreateAlert(data);
   }
 

@@ -14,7 +14,7 @@ import { Alert, AlertSchema } from './schemas/alert.schema';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI_NOTIFICATION') || 'mongodb+srv://thanhanh818757_db_user:thanhanh09082004@warehourse-management.7kb2u1w.mongodb.net/notification_db',
+        uri: configService.get<string>('MONGODB_URI_NOTIFICATION') || 'mongodb://localhost:27017/notification_db',
       }),
       inject: [ConfigService],
     }),

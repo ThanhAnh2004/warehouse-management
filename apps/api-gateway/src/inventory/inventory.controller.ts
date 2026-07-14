@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Delete, Post, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -56,6 +56,12 @@ export class InventoryController {
     if (createProductDto.price) {
       createProductDto.price = Number(createProductDto.price);
     }
+    if (createProductDto.orderingCost) {
+      createProductDto.orderingCost = Number(createProductDto.orderingCost);
+    }
+    if (createProductDto.holdingCostRate) {
+      createProductDto.holdingCostRate = Number(createProductDto.holdingCostRate);
+    }
     return this.inventoryClient.send('product.create', createProductDto);
   }
 
@@ -82,12 +88,30 @@ export class InventoryController {
     return this.inventoryClient.send('product.find_by_sku', sku);
   }
 
+  @Patch('products/:sku')
+  @Roles('Admin', 'Manager')
+  updateProduct(@Param('sku') sku: string, @Body() updateProductDto: any) {
+    return this.inventoryClient.send('product.update', { sku, updateProductDto });
+  }
+
+  @Delete('products/:sku')
+  @Roles('Admin', 'Manager')
+  deleteProduct(@Param('sku') sku: string) {
+    return this.inventoryClient.send('product.delete', sku);
+  }
+
   @Get('stock/:productId')
   @Roles('Admin', 'Manager', 'Staff')
   @UseInterceptors(CacheInterceptor)
   @CacheTTL(30000) // Cache for 30 seconds
   getStock(@Param('productId') productId: string) {
     return this.inventoryClient.send('inventory.get_stock', productId);
+  }
+
+  @Get('reorder/:productId')
+  @Roles('Admin', 'Manager', 'Staff')
+  getReorderInfo(@Param('productId') productId: string) {
+    return this.inventoryClient.send('inventory.get_reorder_info', productId);
   }
 
   @Get('forecast/:productId')

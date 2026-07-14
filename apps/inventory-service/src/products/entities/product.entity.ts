@@ -26,6 +26,14 @@ export class Product {
   @Column({ nullable: true })
   imageUrl: string;
 
+  // EOQ inputs (Economic Order Quantity) - optional per-product overrides; sensible defaults are
+  // applied in StockService when not set so existing products keep working without migration.
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  orderingCost: number; // S: cost per purchase order (VND)
+
+  @Column({ type: 'decimal', precision: 5, scale: 4, nullable: true })
+  holdingCostRate: number; // H rate: annual holding cost as a fraction of unit price (e.g. 0.2 = 20%/year)
+
   @CreateDateColumn()
   createdAt: Date;
 

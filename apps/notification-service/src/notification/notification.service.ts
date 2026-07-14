@@ -35,30 +35,32 @@ export class NotificationService {
     });
   }
 
-  async checkAndCreateAlert(payload: { productId: string, productName: string, newStock: number }) {
+  async checkAndCreateAlert(payload: { productId: string, productName: string, newStock: number, eoq?: number }) {
     this.logger.log(`Received stock change for ${payload.productName}: new stock = ${payload.newStock}`);
-    // Giả sử ngưỡng cảnh báo EOQ cố định là 20
-    if (payload.newStock < 20) {
-      this.logger.warn(`Stock for ${payload.productName} is below 20! Creating alert.`);
+    // Inventory Service already decided this crossed the product's EOQ reorder threshold
+    // before emitting this event; fall back to 20 only if an older caller omits eoq.
+    const threshold = payload.eoq ?? 20;
+    if (payload.newStock < threshold) {
+      this.logger.warn(`Stock for ${payload.productName} is below EOQ threshold (${threshold})! Creating alert.`);
       const newAlert = new this.alertModel({
         productId: payload.productId,
         productName: payload.productName,
-        message: `Sản phẩm ${payload.productName} sắp hết hàng! (Tồn kho hiện tại: ${payload.newStock})`,
+        message: `Sản phẩm ${payload.productName} tồn kho (${payload.newStock}) đã xuống dưới ngưỡng đặt hàng lại EOQ (${threshold})!`,
       });
       await newAlert.save();
-      await this.sendLowStockAlertEmail(payload.productName, payload.newStock);
+      await this.sendLowStockAlertEmail(payload.productName, payload.newStock, threshold);
     }
   }
 
-  async sendLowStockAlertEmail(productName: string, currentQuantity: number) {
+  async sendLowStockAlertEmail(productName: string, currentQuantity: number, eoqThreshold: number) {
     const mailOptions = {
       from: '"Warehouse System" <alert@warehouse.local>',
       to: 'manager@gmail.com',
-      subject: '🚨 CẢNH BÁO TỒN KHO THẤP',
-      text: `Sản phẩm: ${productName} hiện đang có tồn kho rất thấp.\nSố lượng hiện tại: ${currentQuantity}.\nVui lòng nhập thêm hàng ngay!`,
-      html: `<h3>🚨 CẢNH BÁO TỒN KHO THẤP</h3>
-             <p>Sản phẩm: <b>${productName}</b> hiện đang có tồn kho rất thấp.</p>
-             <p>Số lượng hiện tại: <b style="color:red">${currentQuantity}</b></p>
+      subject: '🚨 CẢNH BÁO TỒN KHO DƯỚI NGƯỠNG EOQ',
+      text: `Sản phẩm: ${productName} hiện đang có tồn kho dưới ngưỡng đặt hàng lại (EOQ).\nSố lượng hiện tại: ${currentQuantity}.\nNgưỡng EOQ: ${eoqThreshold}.\nVui lòng nhập thêm hàng ngay!`,
+      html: `<h3>🚨 CẢNH BÁO TỒN KHO DƯỚI NGƯỠNG EOQ</h3>
+             <p>Sản phẩm: <b>${productName}</b> hiện đang có tồn kho dưới ngưỡng đặt hàng lại (EOQ).</p>
+             <p>Số lượng hiện tại: <b style="color:red">${currentQuantity}</b> (ngưỡng EOQ: <b>${eoqThreshold}</b>)</p>
              <p>Vui lòng nhập thêm hàng ngay!</p>`
     };
 
