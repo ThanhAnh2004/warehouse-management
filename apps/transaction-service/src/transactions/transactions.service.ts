@@ -67,9 +67,9 @@ export class TransactionsService {
       // 3. Nếu thành công, đánh dấu COMPLETED
       savedTransaction.status = TransactionStatus.COMPLETED;
     } catch (error) {
-      // 4. Nếu có lỗi từ Inventory (ví dụ: kho không đủ), đánh dấu FAILED
-      savedTransaction.status = TransactionStatus.FAILED;
-      savedTransaction.note = (savedTransaction.note || '') + ' | Error: ' + (error.message || JSON.stringify(error));
+      // Rollback: Xóa transaction PENDING để không lưu rác vào database khi gặp lỗi
+      await this.transactionRepository.remove(savedTransaction);
+      throw new RpcException(error.message || 'Transaction failed');
     }
 
     // Cập nhật lại trạng thái cuối cùng

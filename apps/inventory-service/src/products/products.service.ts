@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { Inventory } from '../stock/entities/inventory.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { RpcException } from '@nestjs/microservices';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 
 @Injectable()
 export class ProductsService {
@@ -14,6 +14,7 @@ export class ProductsService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -33,6 +34,15 @@ export class ProductsService {
         updatedBy: createProductDto.updatedBy || 'system',
       });
       await this.inventoryRepository.save(inventory);
+
+      // Emit stock alert if quantity is below 20
+      if (initialQuantity < 20) {
+        this.notificationClient.emit('product.stock.changed', {
+          productId: savedProduct.id,
+          productName: savedProduct.name,
+          newStock: initialQuantity,
+        });
+      }
 
       return savedProduct;
     } catch (error) {
@@ -148,6 +158,16 @@ export class ProductsService {
         inventory.currentQuantity = Number(quantity);
       }
       await this.inventoryRepository.save(inventory);
+
+      // Emit stock alert if quantity is below 20
+      const currentQty = Number(quantity);
+      if (currentQty < 20) {
+        this.notificationClient.emit('product.stock.changed', {
+          productId: product.id,
+          productName: product.name,
+          newStock: currentQty,
+        });
+      }
     }
     
     return savedProduct;

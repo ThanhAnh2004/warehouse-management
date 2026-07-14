@@ -43,7 +43,7 @@ export class NotificationService {
       const newAlert = new this.alertModel({
         productId: payload.productId,
         productName: payload.productName,
-        message: `Sản phẩm ${payload.productName} sắp hết hàng! (Tồn kho hiện tại: ${payload.newStock})`,
+        message: `Product ${payload.productName} has a low quantity in stock! (Current stock: ${payload.newStock})`,
       });
       await newAlert.save();
       await this.sendLowStockAlertEmail(payload.productName, payload.newStock);
@@ -54,19 +54,19 @@ export class NotificationService {
     const mailOptions = {
       from: '"Warehouse System" <alert@warehouse.local>',
       to: 'manager@gmail.com',
-      subject: '🚨 CẢNH BÁO TỒN KHO THẤP',
-      text: `Sản phẩm: ${productName} hiện đang có tồn kho rất thấp.\nSố lượng hiện tại: ${currentQuantity}.\nVui lòng nhập thêm hàng ngay!`,
-      html: `<h3>🚨 CẢNH BÁO TỒN KHO THẤP</h3>
-             <p>Sản phẩm: <b>${productName}</b> hiện đang có tồn kho rất thấp.</p>
-             <p>Số lượng hiện tại: <b style="color:red">${currentQuantity}</b></p>
-             <p>Vui lòng nhập thêm hàng ngay!</p>`
+      subject: '🚨 LOW STOCK ALERT',
+      text: `Product: ${productName} is currently very low in stock.\nCurrent quantity: ${currentQuantity}.\nPlease restock immediately!`,
+      html: `<h3>🚨 LOW STOCK ALERT</h3>
+             <p>Product: <b>${productName}</b> is currently very low in stock.</p>
+             <p>Current quantity: <b style="color:red">${currentQuantity}</b></p>
+             <p>Please restock immediately!</p>`
     };
 
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Đã gửi email cảnh báo! Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+      this.logger.log(`Low stock email alert sent! Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
     } catch (error) {
-      this.logger.error('Lỗi khi gửi email', error);
+      this.logger.error('Error sending email', error);
     }
   }
 
@@ -76,5 +76,9 @@ export class NotificationService {
 
   async markAsRead(id: string) {
     return this.alertModel.findByIdAndUpdate(id, { isRead: true }, { new: true }).exec();
+  }
+
+  async deleteAlert(id: string) {
+    return this.alertModel.findByIdAndDelete(id).exec();
   }
 }

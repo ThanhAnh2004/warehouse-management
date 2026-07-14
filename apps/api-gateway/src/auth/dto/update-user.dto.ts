@@ -27,4 +27,11 @@ export class UpdateUserDto {
   @IsIn(['Male', 'Female'], { message: 'Gender must be Male or Female' })
   @IsOptional()
   gender?: string;
+
+  @ApiProperty({ required: false, example: 'Staff' })
+  @IsString()
+  @IsNotEmpty({ message: 'Role cannot be empty' })
+  @IsIn(['Staff', 'Manager', 'Admin'], { message: 'Role must be Staff, Manager or Admin' })
+  @IsOptional()
+  role?: string;
 }
