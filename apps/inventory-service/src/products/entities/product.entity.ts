@@ -11,6 +11,9 @@ export class Product {
   @Column()
   name: string;
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  price: number;
+
   @Column({ nullable: true })
   description: string;
 
@@ -20,9 +23,18 @@ export class Product {
   @Column({ nullable: true })
   unit: string;
 
+  @Column({ nullable: true })
+  imageUrl: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ nullable: true })
+  createdBy: string;
+
+  @Column({ nullable: true })
+  updatedBy: string;
 }

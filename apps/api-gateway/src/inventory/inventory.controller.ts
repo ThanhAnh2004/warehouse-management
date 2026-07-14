@@ -1,34 +1,157 @@
-import { Body, Controller, Get, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe, Patch, Delete } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 
+@ApiTags('Inventory')
+@ApiBearerAuth('JWT-auth')
 @Controller('inventory')
+@UseGuards(AuthGuard, RolesGuard)
 export class InventoryController {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
 
   @Post('products')
-  createProduct(@Body() createProductDto: any) {
+  @Roles('Admin', 'Manager')
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: join(__dirname, '..', '..', 'public', 'uploads'),
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = extname(file.originalname);
+        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+      }
+    })
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        sku: { type: 'string' },
+        price: { type: 'number' },
+        quantity: { type: 'number' },
+        image: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UsePipes(new ValidationPipe({ whitelist: false }))
+  createProduct(@Body() createProductDto: any, @UploadedFile() file: Express.Multer.File) {
+    console.log('UPLOAD RECEIVED BODY:', createProductDto);
+    console.log('UPLOAD RECEIVED FILE:', file);
+    createProductDto = createProductDto || {};
+    if (file) {
+      createProductDto.imageUrl = `http://localhost:8000/uploads/${file.filename}`;
+    }
+    if (createProductDto.price) {
+      createProductDto.price = Number(createProductDto.price);
+    }
+    if (createProductDto.quantity) {
+      createProductDto.quantity = Number(createProductDto.quantity);
+    }
     return this.inventoryClient.send('product.create', createProductDto);
   }
 
+  @Patch('products/:sku')
+  @Roles('Admin', 'Manager')
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: join(__dirname, '..', '..', 'public', 'uploads'),
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = extname(file.originalname);
+        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+      }
+    })
+  }))
+  async updateProduct(@Param('sku') sku: string, @Body() body: any, @UploadedFile() file: Express.Multer.File) {
+    try {
+      console.log('API-GATEWAY UPDATE PRODUCT LOG:', { sku, body, file });
+      body = body || {};
+      if (file) {
+        body.imageUrl = `http://localhost:8000/uploads/${file.filename}`;
+      }
+      if (body.price) {
+        body.price = Number(body.price);
+      }
+      if (body.quantity !== undefined && body.quantity !== null) {
+        body.quantity = Number(body.quantity);
+      }
+      const result = await this.inventoryClient.send('product.update', { sku, updateProductDto: body }).toPromise();
+      console.log('API-GATEWAY UPDATE SUCCESS RESULT:', result);
+      return result;
+    } catch (err) {
+      console.error('API-GATEWAY UPDATE FAILED ERROR:', err);
+      throw err;
+    }
+  }
+
+  @Delete('products/:sku')
+  @Roles('Admin')
+  deleteProduct(@Param('sku') sku: string) {
+    return this.inventoryClient.send('product.delete', sku);
+  }
+
+
+
   @Get('products')
-  findAllProducts() {
-    return this.inventoryClient.send('product.find_all', {});
+  @Roles('Admin', 'Manager', 'Staff')
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'sortBy', required: false, type: String })
+  @ApiQuery({ name: 'sortOrder', required: false, type: String })
+  findAllProducts(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Query('search') search: string = '',
+    @Query('sortBy') sortBy: string = 'createdAt',
+    @Query('sortOrder') sortOrder: string = 'DESC'
+  ) {
+    return this.inventoryClient.send('product.find_all', {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      search,
+      sortBy,
+      sortOrder
+    });
   }
 
   @Get('products/:sku')
+  @Roles('Admin', 'Manager', 'Staff')
   findProductBySku(@Param('sku') sku: string) {
     return this.inventoryClient.send('product.find_by_sku', sku);
   }
 
   @Get('stock/:productId')
+  @Roles('Admin', 'Manager', 'Staff')
   getStock(@Param('productId') productId: string) {
     return this.inventoryClient.send('inventory.get_stock', productId);
   }
 
-  @Put('stock')
-  updateStock(@Body() updateStockDto: any) {
-    return this.inventoryClient.send('inventory.update_stock', updateStockDto);
+  @Get('forecast/:productId')
+  @Roles('Admin', 'Manager')
+  async getForecast(@Param('productId') productId: string) {
+    try {
+      const response = await fetch(`http://localhost:8004/forecast/${productId}?days=7`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Forecasting service error: ${errorData.detail}`);
+      }
+      return await response.json();
+    } catch (error) {
+      return { success: false, message: 'Could not fetch forecast data', error: error.message };
+    }
   }
 }

@@ -20,4 +20,19 @@ export class AuthController {
   handleVerifyToken(@Payload() data: { token: string }) {
     return this.authService.verifyToken(data);
   }
+
+  @MessagePattern('auth.refresh')
+  handleRefresh(@Payload() data: { refreshToken: string }) {
+    return this.authService.refresh(data);
+  }
+
+  @MessagePattern('auth.logout')
+  handleLogout(@Payload() data: { userId?: string, refreshToken?: string }) {
+    return this.authService.logout(data);
+  }
+
+  @MessagePattern('auth.change_password')
+  handleChangePassword(@Payload() data: any) {
+    return this.authService.changePassword(data);
+  }
 }

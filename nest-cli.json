@@ -36,6 +36,33 @@
       "compilerOptions": {
         "tsConfigPath": "apps/inventory-service/tsconfig.app.json"
       }
+    },
+    "notification-service": {
+      "type": "application",
+      "root": "apps/notification-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/notification-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/notification-service/tsconfig.app.json"
+      }
+    },
+    "reporting-service": {
+      "type": "application",
+      "root": "apps/reporting-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/reporting-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/reporting-service/tsconfig.app.json"
+      }
+    },
+    "transaction-service": {
+      "type": "application",
+      "root": "apps/transaction-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/transaction-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/transaction-service/tsconfig.app.json"
+      }
     }
   }
 }

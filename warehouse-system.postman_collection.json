@@ -323,9 +323,19 @@
 					"response": []
 				},
 				{
-					"name": "Update Stock (Nhập/Xuất kho)",
+					"name": "Create Transaction (Nhập/Xuất kho)",
 					"request": {
-						"method": "PUT",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "NHẬP_TOKEN_SAU_KHI_LOGIN_VÀO_ĐÂY",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
 						"header": [
 							{
 								"key": "Content-Type",
@@ -335,18 +345,46 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"productId\": \"NHẬP_UUID_SẢN_PHẨM_VÀO_ĐÂY\",\n  \"quantityChange\": 50,\n  \"location\": \"KHO_A\"\n}"
+							"raw": "{\n  \"type\": \"INBOUND\",\n  \"productId\": \"NHẬP_UUID_SẢN_PHẨM_VÀO_ĐÂY\",\n  \"quantity\": 50,\n  \"locationTo\": \"KHO_A\",\n  \"note\": \"Nhập hàng đợt 1\"\n}"
 						},
 						"url": {
-							"raw": "http://localhost:8000/inventory/stock",
+							"raw": "http://localhost:8000/transactions",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "8000",
 							"path": [
-								"inventory",
-								"stock"
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Transactions",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "NHẬP_TOKEN_SAU_KHI_LOGIN_VÀO_ĐÂY",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/transactions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"transactions"
 							]
 						}
 					},
