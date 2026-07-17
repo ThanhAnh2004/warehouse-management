@@ -37,4 +37,10 @@ export class Product {
 
   @Column({ nullable: true })
   updatedBy: string;
+
+  @Column({ type: 'int', default: 20 })
+  minStockLevel: number;
+
+  @Column({ type: 'int', nullable: true })
+  maxStockLevel: number;
 }

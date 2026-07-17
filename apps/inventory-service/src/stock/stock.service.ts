@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Inventory } from './entities/inventory.entity';
+import { Product } from '../products/entities/product.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 
@@ -12,6 +13,8 @@ export class StockService {
   constructor(
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
@@ -38,7 +41,7 @@ export class StockService {
         currentQuantity: quantityChange,
       });
       const savedNew = await this.inventoryRepository.save(inventory);
-      this.checkAndEmitAlert(productId, savedNew.currentQuantity);
+      await this.checkAndEmitAlert(productId, savedNew.currentQuantity);
       return savedNew;
     }
 
@@ -48,16 +51,21 @@ export class StockService {
 
     inventory.currentQuantity += quantityChange;
     const savedUpdate = await this.inventoryRepository.save(inventory);
-    this.checkAndEmitAlert(productId, savedUpdate.currentQuantity);
+    await this.checkAndEmitAlert(productId, savedUpdate.currentQuantity);
     return savedUpdate;
   }
 
-  private checkAndEmitAlert(productId: string, currentQuantity: number) {
-    if (currentQuantity < 20) {
-      this.logger.log(`Stock below 20 for ${productId}, emitting alert.`);
+  private async checkAndEmitAlert(productId: string, currentQuantity: number) {
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    const minLevel = product ? (product.minStockLevel !== undefined ? product.minStockLevel : 20) : 20;
+    
+    if (currentQuantity < minLevel) {
+      const productName = product ? product.name : `Product ID: ${productId}`;
+      
+      this.logger.log(`Stock below ${minLevel} for ${productName}, emitting alert.`);
       this.notificationClient.emit('product.stock.changed', { 
         productId, 
-        productName: `Product ID: ${productId}`, // Lấy tên thật nếu có join, tạm dùng ID
+        productName,
         newStock: currentQuantity 
       });
     }

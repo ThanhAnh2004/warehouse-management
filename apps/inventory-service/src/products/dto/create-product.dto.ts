@@ -38,4 +38,10 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   updatedBy?: string;
+
+  @IsOptional()
+  minStockLevel: number;
+
+  @IsOptional()
+  maxStockLevel?: number;
 }

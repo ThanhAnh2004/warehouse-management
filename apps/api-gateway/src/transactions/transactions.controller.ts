@@ -1,21 +1,21 @@
 import { Controller, Post, Get, Body, Inject, UseGuards, Request, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuthGuard } from '../auth/auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Transactions')
 @ApiBearerAuth('JWT-auth')
 @Controller('transactions')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, PermissionsGuard)
 export class TransactionsController {
   constructor(
     @Inject('TRANSACTION_SERVICE') private readonly transactionClient: ClientProxy,
   ) {}
 
   @Post()
-  @Roles('Admin', 'Manager', 'Staff')
+  @RequirePermissions('transactions:create')
   createTransaction(@Body() body: any, @Request() req) {
     // req.user được gán từ AuthGuard
     const payload = {
@@ -26,7 +26,7 @@ export class TransactionsController {
   }
 
   @Get()
-  @Roles('Admin', 'Manager', 'Staff')
+  @RequirePermissions('transactions:read')
   getTransactions(
     @Query('productId') productId?: string,
     @Query('page') page?: string,

@@ -34,6 +34,9 @@ export class User {
 
   @Prop()
   refreshToken: string;
+
+  @Prop({ type: [String], default: null })
+  permissions: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

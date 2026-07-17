@@ -20,7 +20,11 @@ export class ReportingServiceService {
 
     const products = inventoryData.data || [];
     const totalProducts = products.length;
-    const totalInventoryValue = products.reduce((acc, p) => acc + (p.price || 0), 0); // Simplified value
+    const totalInventoryValue = products.reduce((acc, p) => {
+      const price = parseFloat(p.price as any) || 0;
+      const qty = parseInt(p.quantity as any, 10) || 0;
+      return acc + (price * qty);
+    }, 0);
     const lowStock = products.filter(p => (p.quantity || 0) < 20).length;
 
     // 2. Fetch all transactions
