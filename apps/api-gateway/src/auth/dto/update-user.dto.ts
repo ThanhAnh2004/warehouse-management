@@ -34,4 +34,8 @@ export class UpdateUserDto {
   @IsIn(['Staff', 'Manager', 'Admin'], { message: 'Role must be Staff, Manager or Admin' })
   @IsOptional()
   role?: string;
+
+  @ApiProperty({ required: false, type: [String], example: ['products:read'] })
+  @IsOptional()
+  permissions?: string[];
 }

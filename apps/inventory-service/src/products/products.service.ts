@@ -35,8 +35,9 @@ export class ProductsService {
       });
       await this.inventoryRepository.save(inventory);
 
-      // Emit stock alert if quantity is below 20
-      if (initialQuantity < 20) {
+      // Emit stock alert if quantity is below minStockLevel (default: 20)
+      const minLevel = savedProduct.minStockLevel !== undefined ? savedProduct.minStockLevel : 20;
+      if (initialQuantity < minLevel) {
         this.notificationClient.emit('product.stock.changed', {
           productId: savedProduct.id,
           productName: savedProduct.name,
@@ -159,9 +160,10 @@ export class ProductsService {
       }
       await this.inventoryRepository.save(inventory);
 
-      // Emit stock alert if quantity is below 20
+      // Emit stock alert if quantity is below minStockLevel (default: 20)
       const currentQty = Number(quantity);
-      if (currentQty < 20) {
+      const minLevel = savedProduct.minStockLevel !== undefined ? savedProduct.minStockLevel : 20;
+      if (currentQty < minLevel) {
         this.notificationClient.emit('product.stock.changed', {
           productId: product.id,
           productName: product.name,

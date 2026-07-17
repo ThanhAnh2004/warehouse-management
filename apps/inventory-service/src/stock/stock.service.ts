@@ -56,11 +56,13 @@ export class StockService {
   }
 
   private async checkAndEmitAlert(productId: string, currentQuantity: number) {
-    if (currentQuantity < 20) {
-      const product = await this.productRepository.findOne({ where: { id: productId } });
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    const minLevel = product ? (product.minStockLevel !== undefined ? product.minStockLevel : 20) : 20;
+    
+    if (currentQuantity < minLevel) {
       const productName = product ? product.name : `Product ID: ${productId}`;
       
-      this.logger.log(`Stock below 20 for ${productName}, emitting alert.`);
+      this.logger.log(`Stock below ${minLevel} for ${productName}, emitting alert.`);
       this.notificationClient.emit('product.stock.changed', { 
         productId, 
         productName,

@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Inject, Param, Post, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe, Patch, Delete } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuthGuard } from '../auth/auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -12,14 +12,14 @@ import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 @ApiTags('Inventory')
 @ApiBearerAuth('JWT-auth')
 @Controller('inventory')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, PermissionsGuard)
 export class InventoryController {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
 
   @Post('products')
-  @Roles('Admin', 'Manager')
+  @RequirePermissions('products:create')
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
       destination: join(__dirname, '..', '..', 'public', 'uploads'),
@@ -64,7 +64,7 @@ export class InventoryController {
   }
 
   @Patch('products/:sku')
-  @Roles('Admin', 'Manager')
+  @RequirePermissions('products:update')
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
       destination: join(__dirname, '..', '..', 'public', 'uploads'),
@@ -98,7 +98,7 @@ export class InventoryController {
   }
 
   @Delete('products/:sku')
-  @Roles('Admin')
+  @RequirePermissions('products:delete')
   deleteProduct(@Param('sku') sku: string) {
     return this.inventoryClient.send('product.delete', sku);
   }
@@ -106,7 +106,7 @@ export class InventoryController {
 
 
   @Get('products')
-  @Roles('Admin', 'Manager', 'Staff')
+  @RequirePermissions('products:read')
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -129,19 +129,19 @@ export class InventoryController {
   }
 
   @Get('products/:sku')
-  @Roles('Admin', 'Manager', 'Staff')
+  @RequirePermissions('products:read')
   findProductBySku(@Param('sku') sku: string) {
     return this.inventoryClient.send('product.find_by_sku', sku);
   }
 
   @Get('stock/:productId')
-  @Roles('Admin', 'Manager', 'Staff')
+  @RequirePermissions('stock:read')
   getStock(@Param('productId') productId: string) {
     return this.inventoryClient.send('inventory.get_stock', productId);
   }
 
   @Get('forecast/:productId')
-  @Roles('Admin', 'Manager')
+  @RequirePermissions('forecast:read')
   async getForecast(@Param('productId') productId: string) {
     try {
       const response = await fetch(`http://localhost:8004/forecast/${productId}?days=7`);

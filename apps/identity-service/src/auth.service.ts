@@ -53,11 +53,17 @@ export class AuthService {
       return { success: false, message: 'Invalid credentials' };
     }
 
-    // Tạo JWT token đính kèm role
+    // Lấy permissions (tùy chỉnh của user hoặc mặc định từ role)
+    const permissions = (user.permissions !== null && user.permissions !== undefined)
+      ? user.permissions
+      : await this.usersService.findPermissionsForRole(user.role);
+
+    // Tạo JWT token đính kèm role và permissions
     const payload = { 
       email: user.email, 
       sub: user.id, 
       role: user.role,
+      permissions,
       fullname: user.fullname 
     };
     const token = this.jwtService.sign(payload);
@@ -79,11 +85,17 @@ export class AuthService {
       return { success: false, message: 'Invalid refresh token' };
     }
 
+    // Lấy permissions (tùy chỉnh của user hoặc mặc định từ role)
+    const permissions = (user.permissions !== null && user.permissions !== undefined)
+      ? user.permissions
+      : await this.usersService.findPermissionsForRole(user.role);
+
     // Tạo token mới
     const payload = { 
       email: user.email, 
       sub: user.id, 
       role: user.role,
+      permissions,
       fullname: user.fullname 
     };
     const token = this.jwtService.sign(payload);
