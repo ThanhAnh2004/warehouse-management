@@ -1,6 +1,14 @@
 import { IsEnum, IsString, IsNotEmpty, IsInt, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionType } from '../entities/transaction.entity';
+
+// Trùng với enum TransactionType bên transaction-service. Nhân bản có chủ đích thay vì
+// import chéo giữa 2 app trong monorepo, để tránh ràng buộc lúc build/deploy 2 service độc lập.
+export enum TransactionType {
+  INBOUND = 'INBOUND',
+  OUTBOUND = 'OUTBOUND',
+  TRANSFER = 'TRANSFER',
+  ADJUSTMENT = 'ADJUSTMENT',
+}
 
 export class CreateTransactionDto {
   @ApiProperty({ enum: TransactionType, example: TransactionType.INBOUND })
@@ -36,9 +44,4 @@ export class CreateTransactionDto {
   @IsString()
   @IsOptional()
   note?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  createdBy?: string;
 }

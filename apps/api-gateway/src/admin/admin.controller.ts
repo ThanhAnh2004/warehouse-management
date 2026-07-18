@@ -73,13 +73,13 @@ export class AdminController {
       },
       {
         name: 'Data Processing Service',
-        host: 'localhost',
-        port: 8005,
+        host: this.configService.get<string>('DATA_PROCESSING_SERVICE_HOST', 'localhost'),
+        port: this.configService.get<number>('DATA_PROCESSING_SERVICE_PORT', 8005),
       },
       {
         name: 'Forecasting Service',
-        host: 'localhost',
-        port: 8004,
+        host: this.configService.get<string>('FORECASTING_SERVICE_HOST', 'localhost'),
+        port: this.configService.get<number>('FORECASTING_SERVICE_PORT', 8004),
       },
     ];
 

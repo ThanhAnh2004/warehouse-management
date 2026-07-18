@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TransactionServiceController } from './transaction-service.controller';
-import { TransactionServiceService } from './transaction-service.service';
 import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
@@ -27,7 +25,5 @@ import { TransactionsModule } from './transactions/transactions.module';
     }),
     TransactionsModule,
   ],
-  controllers: [TransactionServiceController],
-  providers: [TransactionServiceService],
 })
 export class TransactionServiceModule {}

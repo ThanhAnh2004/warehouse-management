@@ -2,12 +2,11 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install dependencies
-RUN apt-get update && apt-get install -y libpq-dev gcc
+# gcc: can cho viec build mot so wheel khoa hoc du lieu tren image slim
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements if exists, else install directly
-# Since we might not have requirements.txt, we install known deps
-RUN pip install fastapi uvicorn psycopg2-binary pandas scikit-learn python-dotenv
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source
 COPY . .

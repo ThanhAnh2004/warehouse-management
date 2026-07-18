@@ -13,11 +13,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ClientsModule.registerAsync([
       {
         name: 'NOTIFICATION_SERVICE',
-        useFactory: () => ({
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: '127.0.0.1',
-            port: 3004,
+            host: configService.get<string>('NOTIFICATION_SERVICE_HOST', 'localhost'),
+            port: configService.get<number>('NOTIFICATION_SERVICE_PORT', 3004),
           },
         }),
       },

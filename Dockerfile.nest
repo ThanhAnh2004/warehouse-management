@@ -20,4 +20,4 @@ ENV APP_MAIN_FILE=dist/apps/${APP_NAME}/main.js
 
 # Expose ports will be done in docker-compose.yml
 
-CMD sh -c "node dist/apps/${APP_NAME}/main.js"
+CMD ["sh", "-c", "node $APP_MAIN_FILE"]
