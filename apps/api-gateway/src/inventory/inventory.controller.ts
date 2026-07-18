@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Inject, Param, Post, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe, Patch, Delete } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
@@ -16,6 +17,7 @@ import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 export class InventoryController {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('products')
@@ -143,8 +145,12 @@ export class InventoryController {
   @Get('forecast/:productId')
   @RequirePermissions('forecast:read')
   async getForecast(@Param('productId') productId: string) {
+    // Dùng host/port từ biến môi trường để hoạt động cả khi chạy Docker
+    // (trong Docker phải là forecasting-service:8004, không phải localhost).
+    const host = this.configService.get<string>('FORECASTING_SERVICE_HOST', 'localhost');
+    const port = this.configService.get<number>('FORECASTING_SERVICE_PORT', 8004);
     try {
-      const response = await fetch(`http://localhost:8004/forecast/${productId}?days=7`);
+      const response = await fetch(`http://${host}:${port}/forecast/${productId}?days=7`);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Forecasting service error: ${errorData.detail}`);

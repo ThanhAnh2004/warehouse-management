@@ -35,13 +35,24 @@ export class ProductsService {
       });
       await this.inventoryRepository.save(inventory);
 
-      // Emit stock alert if quantity is below minStockLevel (default: 20)
+      // Emit stock alert: thiếu hàng (dưới min) hoặc tồn kho quá mức (trên max)
       const minLevel = savedProduct.minStockLevel !== undefined ? savedProduct.minStockLevel : 20;
+      const maxLevel = savedProduct.maxStockLevel;
       if (initialQuantity < minLevel) {
         this.notificationClient.emit('product.stock.changed', {
           productId: savedProduct.id,
           productName: savedProduct.name,
           newStock: initialQuantity,
+          threshold: minLevel,
+          alertType: 'LOW_STOCK',
+        });
+      } else if (maxLevel != null && initialQuantity > maxLevel) {
+        this.notificationClient.emit('product.stock.changed', {
+          productId: savedProduct.id,
+          productName: savedProduct.name,
+          newStock: initialQuantity,
+          threshold: maxLevel,
+          alertType: 'OVERSTOCK',
         });
       }
 
@@ -160,14 +171,25 @@ export class ProductsService {
       }
       await this.inventoryRepository.save(inventory);
 
-      // Emit stock alert if quantity is below minStockLevel (default: 20)
+      // Emit stock alert: thiếu hàng (dưới min) hoặc tồn kho quá mức (trên max)
       const currentQty = Number(quantity);
       const minLevel = savedProduct.minStockLevel !== undefined ? savedProduct.minStockLevel : 20;
+      const maxLevel = savedProduct.maxStockLevel;
       if (currentQty < minLevel) {
         this.notificationClient.emit('product.stock.changed', {
           productId: product.id,
           productName: product.name,
           newStock: currentQty,
+          threshold: minLevel,
+          alertType: 'LOW_STOCK',
+        });
+      } else if (maxLevel != null && currentQty > maxLevel) {
+        this.notificationClient.emit('product.stock.changed', {
+          productId: product.id,
+          productName: product.name,
+          newStock: currentQty,
+          threshold: maxLevel,
+          alertType: 'OVERSTOCK',
         });
       }
     }

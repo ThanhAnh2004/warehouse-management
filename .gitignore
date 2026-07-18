@@ -3,6 +3,10 @@
 /node_modules
 /build
 
+# Python
+__pycache__/
+*.pyc
+
 # Logs
 logs
 *.log
