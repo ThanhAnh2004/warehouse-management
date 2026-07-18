@@ -20,4 +20,9 @@ export class NotificationController {
   async markAsRead(@Payload() id: string) {
     return this.notificationService.markAsRead(id);
   }
+
+  @MessagePattern('notification.delete')
+  async deleteAlert(@Payload() id: string) {
+    return this.notificationService.deleteAlert(id);
+  }
 }

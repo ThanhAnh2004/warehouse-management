@@ -33,4 +33,21 @@ export class CreateProductDto {
 
   @IsOptional()
   holdingCostRate?: number;
+
+  @IsOptional()
+  quantity?: number;
+
+  @IsString()
+  @IsOptional()
+  createdBy?: string;
+
+  @IsString()
+  @IsOptional()
+  updatedBy?: string;
+
+  @IsOptional()
+  minStockLevel: number;
+
+  @IsOptional()
+  maxStockLevel?: number;
 }

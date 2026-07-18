@@ -35,40 +35,80 @@ export class NotificationService {
     });
   }
 
-  async checkAndCreateAlert(payload: { productId: string, productName: string, newStock: number, eoq?: number }) {
-    this.logger.log(`Received stock change for ${payload.productName}: new stock = ${payload.newStock}`);
-    // Inventory Service already decided this crossed the product's EOQ reorder threshold
-    // before emitting this event; fall back to 20 only if an older caller omits eoq.
-    const threshold = payload.eoq ?? 20;
-    if (payload.newStock < threshold) {
-      this.logger.warn(`Stock for ${payload.productName} is below EOQ threshold (${threshold})! Creating alert.`);
-      const newAlert = new this.alertModel({
-        productId: payload.productId,
-        productName: payload.productName,
-        message: `Sản phẩm ${payload.productName} tồn kho (${payload.newStock}) đã xuống dưới ngưỡng đặt hàng lại EOQ (${threshold})!`,
-      });
-      await newAlert.save();
-      await this.sendLowStockAlertEmail(payload.productName, payload.newStock, threshold);
+  // Ngưỡng mặc định nếu Inventory Service không gửi kèm threshold trong payload
+  private readonly DEFAULT_THRESHOLD = 20;
+  // Khoảng thời gian (ms) không tạo lại cảnh báo trùng cho cùng 1 sản phẩm (chống spam email)
+  private readonly DEDUP_WINDOW_MS = 60 * 60 * 1000; // 1 giờ
+
+  async checkAndCreateAlert(payload: { productId: string, productName: string, newStock: number, threshold?: number, alertType?: string }) {
+    const threshold = payload.threshold ?? this.DEFAULT_THRESHOLD;
+    const alertType = payload.alertType === 'OVERSTOCK' ? 'OVERSTOCK' : 'LOW_STOCK';
+    const isLow = alertType === 'LOW_STOCK';
+    this.logger.log(`Received stock change for ${payload.productName}: type=${alertType}, stock=${payload.newStock}, threshold=${threshold}`);
+
+    // Inventory Service đã lọc theo ngưỡng của từng sản phẩm trước khi bắn event,
+    // ở đây vẫn kiểm tra lại theo đúng ngưỡng động (không hard-code 20) để phòng thủ.
+    if (isLow && payload.newStock >= threshold) return;
+    if (!isLow && payload.newStock <= threshold) return;
+
+    // Chống spam: nếu đã có cảnh báo CÙNG LOẠI, CHƯA ĐỌC cho sản phẩm này trong
+    // DEDUP_WINDOW gần đây thì bỏ qua, tránh tạo document + gửi email trùng lặp.
+    const since = new Date(Date.now() - this.DEDUP_WINDOW_MS);
+    const existingAlert = await this.alertModel.findOne({
+      productId: payload.productId,
+      alertType,
+      isRead: false,
+      createdAt: { $gte: since },
+    }).exec();
+
+    if (existingAlert) {
+      this.logger.log(`Skip duplicate ${alertType} alert for ${payload.productName} (unread alert already exists).`);
+      return;
     }
+
+    const message = isLow
+      ? `Product ${payload.productName} has fallen below the minimum stock level (Current: ${payload.newStock} / Min: ${threshold}).`
+      : `Product ${payload.productName} has exceeded the maximum stock level (Current: ${payload.newStock} / Max: ${threshold}).`;
+
+    this.logger.warn(`${alertType} for ${payload.productName} (stock=${payload.newStock}, threshold=${threshold})! Creating alert.`);
+    const newAlert = new this.alertModel({
+      productId: payload.productId,
+      productName: payload.productName,
+      alertType,
+      currentStock: payload.newStock,
+      threshold,
+      message,
+    });
+    await newAlert.save();
+    await this.sendStockAlertEmail(alertType, payload.productName, payload.newStock, threshold);
   }
 
-  async sendLowStockAlertEmail(productName: string, currentQuantity: number, eoqThreshold: number) {
+  async sendStockAlertEmail(alertType: string, productName: string, currentQuantity: number, threshold?: number) {
+    const isLow = alertType !== 'OVERSTOCK';
+    const thresholdText = threshold !== undefined ? ` (threshold: ${threshold})` : '';
+    const subject = isLow ? '🚨 LOW STOCK ALERT' : '📦 OVERSTOCK ALERT';
+    const headline = isLow
+      ? `Product: ${productName} is currently very low in stock.`
+      : `Product: ${productName} has exceeded its maximum stock level.`;
+    const action = isLow ? 'Please restock immediately!' : 'Consider slowing down inbound / running a promotion.';
+    const color = isLow ? 'red' : '#d97706';
+
     const mailOptions = {
       from: '"Warehouse System" <alert@warehouse.local>',
       to: 'manager@gmail.com',
-      subject: '🚨 CẢNH BÁO TỒN KHO DƯỚI NGƯỠNG EOQ',
-      text: `Sản phẩm: ${productName} hiện đang có tồn kho dưới ngưỡng đặt hàng lại (EOQ).\nSố lượng hiện tại: ${currentQuantity}.\nNgưỡng EOQ: ${eoqThreshold}.\nVui lòng nhập thêm hàng ngay!`,
-      html: `<h3>🚨 CẢNH BÁO TỒN KHO DƯỚI NGƯỠNG EOQ</h3>
-             <p>Sản phẩm: <b>${productName}</b> hiện đang có tồn kho dưới ngưỡng đặt hàng lại (EOQ).</p>
-             <p>Số lượng hiện tại: <b style="color:red">${currentQuantity}</b> (ngưỡng EOQ: <b>${eoqThreshold}</b>)</p>
-             <p>Vui lòng nhập thêm hàng ngay!</p>`
+      subject,
+      text: `${headline}\nCurrent quantity: ${currentQuantity}${thresholdText}.\n${action}`,
+      html: `<h3>${subject}</h3>
+             <p>${headline}</p>
+             <p>Current quantity: <b style="color:${color}">${currentQuantity}</b>${thresholdText}</p>
+             <p>${action}</p>`
     };
 
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Đã gửi email cảnh báo! Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+      this.logger.log(`${alertType} email alert sent! Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
     } catch (error) {
-      this.logger.error('Lỗi khi gửi email', error);
+      this.logger.error('Error sending email', error);
     }
   }
 
@@ -78,5 +118,9 @@ export class NotificationService {
 
   async markAsRead(id: string) {
     return this.alertModel.findByIdAndUpdate(id, { isRead: true }, { new: true }).exec();
+  }
+
+  async deleteAlert(id: string) {
+    return this.alertModel.findByIdAndDelete(id).exec();
   }
 }

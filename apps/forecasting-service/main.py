@@ -41,7 +41,7 @@ def _fetch_cleaned_series(product_id: str) -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "forecasting-service"}
 
 
 @app.get("/forecast/{product_id}")

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ReportingServiceController } from './reporting-service.controller';
 import { ReportingServiceService } from './reporting-service.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -14,26 +14,26 @@ import { ReportingServiceService } from './reporting-service.service';
       {
         name: 'INVENTORY_SERVICE',
         imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (configService: ConfigService) => ({
+        useFactory: async (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: configService.get<string>('INVENTORY_SERVICE_HOST', 'localhost'),
+            host: configService.get<string>('INVENTORY_SERVICE_HOST', '127.0.0.1'),
             port: configService.get<number>('INVENTORY_SERVICE_PORT', 8002),
           },
         }),
+        inject: [ConfigService],
       },
       {
         name: 'TRANSACTION_SERVICE',
         imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (configService: ConfigService) => ({
+        useFactory: async (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
+            host: configService.get<string>('TRANSACTION_SERVICE_HOST', '127.0.0.1'),
             port: configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
           },
         }),
+        inject: [ConfigService],
       },
     ]),
   ],

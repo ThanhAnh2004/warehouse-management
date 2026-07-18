@@ -14,6 +14,15 @@ export class Alert {
   @Prop({ required: true })
   message: string;
 
+  @Prop({ default: 'LOW_STOCK' })
+  alertType: string; // LOW_STOCK | OVERSTOCK
+
+  @Prop()
+  currentStock: number;
+
+  @Prop()
+  threshold: number;
+
   @Prop({ default: false })
   isRead: boolean;
 

@@ -27,6 +27,7 @@ services:
       POSTGRES_DB: warehouse_identity
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d
     networks:
       - wms_network
 
@@ -56,7 +57,7 @@ services:
       - transaction-service
       - notification-service
       - reporting-service
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -71,7 +72,7 @@ services:
       - "8001:8001"
     depends_on:
       - postgres
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -86,7 +87,7 @@ services:
       - "8002:8002"
     depends_on:
       - postgres
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -101,7 +102,7 @@ services:
       - "8003:8003"
     depends_on:
       - postgres
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -116,7 +117,7 @@ services:
       - "3004:3004"
     depends_on:
       - mongodb
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -129,11 +130,15 @@ services:
     container_name: warehouse_reporting_service
     ports:
       - "3005:3005"
-    env_file: .env
+    depends_on:
+      - inventory-service
+      - transaction-service
+      - forecasting-service
+    env_file: .env.docker
     networks:
       - wms_network
 
-  # Python Services
+  # Python Services - Tiền xử lý dữ liệu (làm sạch & chuẩn hóa dữ liệu thô cho Forecasting)
   data-processing-service:
     build:
       context: ./apps/data-processing-service
@@ -143,7 +148,7 @@ services:
       - "8005:8005"
     depends_on:
       - postgres
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -157,7 +162,7 @@ services:
     depends_on:
       - postgres
       - data-processing-service
-    env_file: .env
+    env_file: .env.docker
     networks:
       - wms_network
 
@@ -167,8 +172,25 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
     container_name: warehouse_frontend
+    # Port is internal now; access goes through reverse-proxy
+    expose:
+      - "80"
+    networks:
+      - wms_network
+
+  # Professional API Gateway Reverse Proxy
+  reverse-proxy:
+    image: nginx:alpine
+    container_name: warehouse_proxy
     ports:
-      - "5173:80" # Maps localhost:5173 to nginx:80
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-gateway
+      - frontend
+      - forecasting-service
+      - data-processing-service
     networks:
       - wms_network
 

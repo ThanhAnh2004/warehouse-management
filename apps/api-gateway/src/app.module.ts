@@ -10,6 +10,7 @@ import { TransactionsController } from './transactions/transactions.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReportsController } from './reports/reports.controller';
 import { AdminController } from './admin/admin.controller';
+import { SystemController } from './system/system.controller';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -18,7 +19,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public'),
+      rootPath: join(__dirname, '..', '..', 'public'),
     }),
     CacheModule.registerAsync({
       isGlobal: true,
@@ -95,7 +96,7 @@ import { redisStore } from 'cache-manager-redis-yet';
       },
     ]),
   ],
-  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController, AdminController],
+  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController, AdminController, SystemController],
   providers: [AppService],
 })
 export class AppModule { }

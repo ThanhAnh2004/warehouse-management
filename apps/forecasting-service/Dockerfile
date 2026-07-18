@@ -5,6 +5,7 @@ WORKDIR /app
 # gcc: can cho viec build mot so wheel khoa hoc du lieu tren image slim
 RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

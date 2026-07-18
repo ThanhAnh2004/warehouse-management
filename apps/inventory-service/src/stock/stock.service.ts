@@ -58,7 +58,7 @@ export class StockService {
         currentQuantity: quantityChange,
       });
       const savedNew = await this.inventoryRepository.save(inventory);
-      this.checkAndEmitAlert(productId, savedNew.currentQuantity);
+      await this.checkAndEmitAlert(productId, savedNew.currentQuantity);
       return savedNew;
     }
 
@@ -68,7 +68,7 @@ export class StockService {
 
     inventory.currentQuantity += quantityChange;
     const savedUpdate = await this.inventoryRepository.save(inventory);
-    this.checkAndEmitAlert(productId, savedUpdate.currentQuantity);
+    await this.checkAndEmitAlert(productId, savedUpdate.currentQuantity);
     return savedUpdate;
   }
 
