@@ -9,6 +9,7 @@ import { InventoryController } from './inventory/inventory.controller';
 import { TransactionsController } from './transactions/transactions.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReportsController } from './reports/reports.controller';
+import { SystemController } from './system/system.controller';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -94,7 +95,7 @@ import { redisStore } from 'cache-manager-redis-yet';
       },
     ]),
   ],
-  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController],
+  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController, SystemController],
   providers: [AppService],
 })
 export class AppModule { }

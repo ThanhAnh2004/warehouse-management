@@ -129,6 +129,24 @@ services:
     container_name: warehouse_reporting_service
     ports:
       - "3005:3005"
+    depends_on:
+      - inventory-service
+      - transaction-service
+      - forecasting-service
+    env_file: .env
+    networks:
+      - wms_network
+
+  # Python Service - Tiền xử lý dữ liệu (làm sạch & chuẩn hóa dữ liệu thô cho Forecasting)
+  data-processing-service:
+    build:
+      context: ./apps/data-processing-service
+      dockerfile: Dockerfile
+    container_name: warehouse_data_processing_service
+    ports:
+      - "8005:8005"
+    depends_on:
+      - postgres
     env_file: .env
     networks:
       - wms_network
@@ -143,6 +161,7 @@ services:
       - "8004:8004"
     depends_on:
       - postgres
+      - data-processing-service
     env_file: .env
     networks:
       - wms_network
@@ -171,6 +190,7 @@ services:
       - api-gateway
       - frontend
       - forecasting-service
+      - data-processing-service
     networks:
       - wms_network
 

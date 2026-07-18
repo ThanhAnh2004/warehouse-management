@@ -58,15 +58,26 @@ export class StockService {
   private async checkAndEmitAlert(productId: string, currentQuantity: number) {
     const product = await this.productRepository.findOne({ where: { id: productId } });
     const minLevel = product ? (product.minStockLevel !== undefined ? product.minStockLevel : 20) : 20;
-    
+    const maxLevel = product ? product.maxStockLevel : null;
+    const productName = product ? product.name : `Product ID: ${productId}`;
+
     if (currentQuantity < minLevel) {
-      const productName = product ? product.name : `Product ID: ${productId}`;
-      
-      this.logger.log(`Stock below ${minLevel} for ${productName}, emitting alert.`);
-      this.notificationClient.emit('product.stock.changed', { 
-        productId, 
+      this.logger.log(`Stock below ${minLevel} for ${productName}, emitting LOW_STOCK alert.`);
+      this.notificationClient.emit('product.stock.changed', {
+        productId,
         productName,
-        newStock: currentQuantity 
+        newStock: currentQuantity,
+        threshold: minLevel,
+        alertType: 'LOW_STOCK',
+      });
+    } else if (maxLevel != null && currentQuantity > maxLevel) {
+      this.logger.log(`Stock above ${maxLevel} for ${productName}, emitting OVERSTOCK alert.`);
+      this.notificationClient.emit('product.stock.changed', {
+        productId,
+        productName,
+        newStock: currentQuantity,
+        threshold: maxLevel,
+        alertType: 'OVERSTOCK',
       });
     }
   }
