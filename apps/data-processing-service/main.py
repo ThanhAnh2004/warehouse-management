@@ -68,7 +68,7 @@ def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     stats["afterStatusFilter"] = int(len(df))
 
     df = df.copy()
-    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce')
+    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').astype(float)
     df = df.dropna(subset=['quantity', 'createdAt'])
     df = df[df['quantity'] > 0]
     stats["afterInvalidFilter"] = int(len(df))

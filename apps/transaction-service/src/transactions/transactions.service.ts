@@ -123,14 +123,66 @@ export class TransactionsService {
   }
 
   async findAll(
-    page: number = 1,
-    limit: number = 20,
+    payload: {
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortOrder?: 'ASC' | 'DESC';
+      type?: string;
+      status?: string;
+      search?: string;
+    } = {},
   ): Promise<{ data: Transaction[]; total: number; page: number; limit: number }> {
-    const [data, total] = await this.transactionRepository.findAndCount({
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const page = payload.page || 1;
+    const limit = payload.limit || 20;
+    const sortBy = payload.sortBy || 'createdAt';
+    const sortOrder = payload.sortOrder || 'DESC';
+
+    const queryBuilder = this.transactionRepository.createQueryBuilder('tx');
+
+    if (payload.type) {
+      queryBuilder.andWhere('tx.type = :type', { type: payload.type });
+    }
+
+    if (payload.status) {
+      queryBuilder.andWhere('tx.status = :status', { status: payload.status });
+    }
+
+    if ((payload as any).startDate) {
+      queryBuilder.andWhere('tx.createdAt >= :startDate', { startDate: new Date((payload as any).startDate) });
+    }
+
+    if ((payload as any).endDate) {
+      const end = new Date((payload as any).endDate);
+      end.setHours(23, 59, 59, 999);
+      queryBuilder.andWhere('tx.createdAt <= :endDate', { endDate: end });
+    }
+
+    if (payload.search) {
+      const s = `%${payload.search.trim()}%`;
+      const searchProductIds = (payload as any).productIds || [];
+      if (Array.isArray(searchProductIds) && searchProductIds.length > 0) {
+        queryBuilder.andWhere(
+          '(tx.note ILIKE :s OR CAST(tx.type AS text) ILIKE :s OR CAST(tx.status AS text) ILIKE :s OR tx.productId IN (:...searchProductIds))',
+          { s, searchProductIds }
+        );
+      } else {
+        queryBuilder.andWhere(
+          '(tx.note ILIKE :s OR CAST(tx.type AS text) ILIKE :s OR CAST(tx.status AS text) ILIKE :s OR tx.productId ILIKE :s)',
+          { s }
+        );
+      }
+    }
+
+    const allowedSortFields = ['createdAt', 'quantity', 'type', 'status', 'updatedAt'];
+    const sortField = allowedSortFields.includes(sortBy) ? `tx.${sortBy}` : 'tx.createdAt';
+
+    queryBuilder
+      .orderBy(sortField, sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total, page, limit };
   }
 
