@@ -13,8 +13,8 @@ export class TransactionsController {
   }
 
   @MessagePattern('transaction.findAll')
-  findAll(@Payload() payload: { page?: number; limit?: number } = {}) {
-    return this.transactionsService.findAll(payload?.page, payload?.limit);
+  findAll(@Payload() payload: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'ASC' | 'DESC'; search?: string; type?: string; status?: string } = {}) {
+    return this.transactionsService.findAll(payload);
   }
 
   @MessagePattern('transaction.findByProduct')
