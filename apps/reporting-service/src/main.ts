@@ -3,14 +3,19 @@ import { ReportingServiceModule } from './reporting-service.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
+  const rmqUrl = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(ReportingServiceModule, {
-    transport: Transport.TCP,
+    transport: Transport.RMQ,
     options: {
-      host: '127.0.0.1',
-      port: 3005,
+      urls: [rmqUrl],
+      queue: 'reporting_queue',
+      queueOptions: {
+        durable: true,
+      },
     },
   });
   await app.listen();
-  console.log('Reporting Microservice is listening on TCP port 3005');
+  console.log(`Reporting Microservice is listening on RabbitMQ queue [reporting_queue] (${rmqUrl})`);
 }
 bootstrap();

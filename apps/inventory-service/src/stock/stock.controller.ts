@@ -16,4 +16,9 @@ export class StockController {
   updateStock(@Payload() updateStockDto: UpdateStockDto) {
     return this.stockService.updateStock(updateStockDto);
   }
+
+  @MessagePattern('inventory.get_reorder_info')
+  getReorderInfo(@Payload() productId: string) {
+    return this.stockService.getReorderInfo(productId);
+  }
 }

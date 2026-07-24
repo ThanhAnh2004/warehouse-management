@@ -1,0 +1,7 @@
+.git
+node_modules
+dist
+coverage
+apps/forecasting-service/venv
+apps/forecasting-service/__pycache__
+*.log

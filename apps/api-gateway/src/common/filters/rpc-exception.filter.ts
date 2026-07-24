@@ -23,7 +23,14 @@ export class RpcExceptionToHttpFilter implements ExceptionFilter {
     } else if (exception && exception.message) {
       // Bắt các error object thông thường được forward qua mạng
       message = exception.message;
-      if (exception.message.includes('exists') || exception.message.includes('Conflict')) {
+      const code = exception.statusCode || exception.status;
+      if (typeof code === 'number' && code >= 400 && code < 600) {
+        // vd: lỗi ValidationPipe từ microservice (class-validator) có sẵn statusCode
+        status = code;
+      } else if (Array.isArray(exception.message)) {
+        // ValidationPipe trả về mảng message khi @Payload() không hợp lệ
+        status = HttpStatus.BAD_REQUEST;
+      } else if (exception.message.includes('exists') || exception.message.includes('Conflict')) {
         status = HttpStatus.CONFLICT;
       } else if (exception.message.includes('Invalid') || exception.message.includes('fail')) {
         status = HttpStatus.BAD_REQUEST;

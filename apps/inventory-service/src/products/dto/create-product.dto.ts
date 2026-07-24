@@ -29,6 +29,12 @@ export class CreateProductDto {
   imageUrl?: string;
 
   @IsOptional()
+  orderingCost?: number;
+
+  @IsOptional()
+  holdingCostRate?: number;
+
+  @IsOptional()
   quantity?: number;
 
   @IsString()
@@ -38,4 +44,10 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   updatedBy?: string;
+
+  @IsOptional()
+  minStockLevel: number;
+
+  @IsOptional()
+  maxStockLevel?: number;
 }

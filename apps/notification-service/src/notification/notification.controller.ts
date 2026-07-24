@@ -7,7 +7,7 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @EventPattern('product.stock.changed')
-  async handleStockChanged(@Payload() data: { productId: string, productName: string, newStock: number }) {
+  async handleStockChanged(@Payload() data: { productId: string, productName: string, newStock: number, eoq?: number }) {
     await this.notificationService.checkAndCreateAlert(data);
   }
 
@@ -19,5 +19,10 @@ export class NotificationController {
   @MessagePattern('notification.mark_as_read')
   async markAsRead(@Payload() id: string) {
     return this.notificationService.markAsRead(id);
+  }
+
+  @MessagePattern('notification.delete')
+  async deleteAlert(@Payload() id: string) {
+    return this.notificationService.deleteAlert(id);
   }
 }

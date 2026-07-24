@@ -7,20 +7,22 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function bootstrap() {
-  const host = process.env.IDENTITY_SERVICE_HOST || 'localhost';
-  const port = parseInt(process.env.IDENTITY_SERVICE_PORT || '8001', 10);
+  const rmqUrl = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
     AuthModule,
     {
-      transport: Transport.TCP,
+      transport: Transport.RMQ,
       options: {
-        host,
-        port,
+        urls: [rmqUrl],
+        queue: 'identity_queue',
+        queueOptions: {
+          durable: true,
+        },
       },
     },
   );
   await app.listen();
-  console.log(`Identity Microservice is listening on ${host}:${port}`);
+  console.log(`Identity Microservice is listening on RabbitMQ queue [identity_queue] (${rmqUrl})`);
 }
 bootstrap();

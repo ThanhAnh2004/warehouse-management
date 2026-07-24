@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 export enum TransactionType {
   INBOUND = 'INBOUND',
@@ -14,6 +14,7 @@ export enum TransactionStatus {
 }
 
 @Entity('transactions')
+@Index(['productId', 'type', 'createdAt']) // phục vụ truy vấn lịch sử theo sản phẩm cho Data Processing/Forecasting Service
 export class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -9,6 +9,8 @@ import { InventoryController } from './inventory/inventory.controller';
 import { TransactionsController } from './transactions/transactions.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReportsController } from './reports/reports.controller';
+import { AdminController } from './admin/admin.controller';
+import { SystemController } from './system/system.controller';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -36,10 +38,13 @@ import { redisStore } from 'cache-manager-redis-yet';
         name: 'IDENTITY_SERVICE',
         imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('IDENTITY_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('IDENTITY_SERVICE_PORT', 8001),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'identity_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
         inject: [ConfigService],
@@ -48,10 +53,13 @@ import { redisStore } from 'cache-manager-redis-yet';
         name: 'INVENTORY_SERVICE',
         imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('INVENTORY_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('INVENTORY_SERVICE_PORT', 8002),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'inventory_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
         inject: [ConfigService],
@@ -60,10 +68,13 @@ import { redisStore } from 'cache-manager-redis-yet';
         name: 'TRANSACTION_SERVICE',
         imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'transaction_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
         inject: [ConfigService],
@@ -72,10 +83,13 @@ import { redisStore } from 'cache-manager-redis-yet';
         name: 'NOTIFICATION_SERVICE',
         imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('NOTIFICATION_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('NOTIFICATION_SERVICE_PORT', 3004),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'notification_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
         inject: [ConfigService],
@@ -84,17 +98,20 @@ import { redisStore } from 'cache-manager-redis-yet';
         name: 'REPORTING_SERVICE',
         imports: [ConfigModule],
         useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('REPORTING_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('REPORTING_SERVICE_PORT', 3005),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'reporting_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
         inject: [ConfigService],
       },
     ]),
   ],
-  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController],
+  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController, AdminController, SystemController],
   providers: [AppService],
 })
 export class AppModule { }
