@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Databases
+  # RabbitMQ Broker for Message Bus
   rabbitmq:
     image: rabbitmq:3-management
     container_name: warehouse_rabbitmq
@@ -13,31 +13,6 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - wms_network
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: warehouse_postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
-      POSTGRES_DB: warehouse_identity
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d
-    networks:
-      - wms_network
-
-  mongodb:
-    image: mongo:6
-    container_name: warehouse_mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
     networks:
       - wms_network
 
@@ -70,8 +45,8 @@ services:
     container_name: warehouse_identity_service
     ports:
       - "8001:8001"
-    depends_on:
-      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: .env.docker
     networks:
       - wms_network
@@ -85,8 +60,8 @@ services:
     container_name: warehouse_inventory_service
     ports:
       - "8002:8002"
-    depends_on:
-      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: .env.docker
     networks:
       - wms_network
@@ -100,8 +75,8 @@ services:
     container_name: warehouse_transaction_service
     ports:
       - "8003:8003"
-    depends_on:
-      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: .env.docker
     networks:
       - wms_network
@@ -115,8 +90,8 @@ services:
     container_name: warehouse_notification_service
     ports:
       - "3004:3004"
-    depends_on:
-      - mongodb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: .env.docker
     networks:
       - wms_network
@@ -130,6 +105,8 @@ services:
     container_name: warehouse_reporting_service
     ports:
       - "3005:3005"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - inventory-service
       - transaction-service
@@ -138,7 +115,7 @@ services:
     networks:
       - wms_network
 
-  # Python Services - Tiền xử lý dữ liệu (làm sạch & chuẩn hóa dữ liệu thô cho Forecasting)
+  # Python Services - Tiền xử lý dữ liệu & AI Forecast
   data-processing-service:
     build:
       context: ./apps/data-processing-service
@@ -146,8 +123,8 @@ services:
     container_name: warehouse_data_processing_service
     ports:
       - "8005:8005"
-    depends_on:
-      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: .env.docker
     networks:
       - wms_network
@@ -159,8 +136,9 @@ services:
     container_name: warehouse_forecasting_service
     ports:
       - "8004:8004"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - postgres
       - data-processing-service
     env_file: .env.docker
     networks:
@@ -172,13 +150,14 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
     container_name: warehouse_frontend
-    # Port is internal now; access goes through reverse-proxy
+    ports:
+      - "5173:80"
     expose:
       - "80"
     networks:
       - wms_network
 
-  # Professional API Gateway Reverse Proxy
+  # NGINX Reverse Proxy
   reverse-proxy:
     image: nginx:alpine
     container_name: warehouse_proxy
@@ -200,5 +179,3 @@ networks:
 
 volumes:
   rabbitmq_data:
-  postgres_data:
-  mongodb_data:

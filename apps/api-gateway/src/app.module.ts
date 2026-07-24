@@ -37,76 +37,126 @@ import { redisStore } from 'cache-manager-redis-yet';
       {
         name: 'IDENTITY_SERVICE',
         imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
-            queue: 'identity_queue',
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
+        useFactory: async (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+                  queue: 'identity_queue',
+                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'identity_dlq' },
+                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('IDENTITY_SERVICE_HOST', 'localhost'),
+                  port: configService.get<number>('IDENTITY_SERVICE_PORT', 8001),
+                },
+              };
+        },
         inject: [ConfigService],
       },
       {
         name: 'INVENTORY_SERVICE',
         imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
-            queue: 'inventory_queue',
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
+        useFactory: async (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+                  queue: 'inventory_queue',
+                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'inventory_dlq' },
+                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('INVENTORY_SERVICE_HOST', 'localhost'),
+                  port: configService.get<number>('INVENTORY_SERVICE_PORT', 8002),
+                },
+              };
+        },
         inject: [ConfigService],
       },
       {
         name: 'TRANSACTION_SERVICE',
         imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
-            queue: 'transaction_queue',
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
+        useFactory: async (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+                  queue: 'transaction_queue',
+                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'transaction_dlq' },
+                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
+                  port: configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
+                },
+              };
+        },
         inject: [ConfigService],
       },
       {
         name: 'NOTIFICATION_SERVICE',
         imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
-            queue: 'notification_queue',
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
+        useFactory: async (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+                  queue: 'notification_queue',
+                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'notification_dlq' },
+                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('NOTIFICATION_SERVICE_HOST', 'localhost'),
+                  port: configService.get<number>('NOTIFICATION_SERVICE_PORT', 3004),
+                },
+              };
+        },
         inject: [ConfigService],
       },
       {
         name: 'REPORTING_SERVICE',
         imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
-            queue: 'reporting_queue',
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
+        useFactory: async (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+                  queue: 'reporting_queue',
+                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'reporting_dlq' },
+                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('REPORTING_SERVICE_HOST', 'localhost'),
+                  port: configService.get<number>('REPORTING_SERVICE_PORT', 3005),
+                },
+              };
+        },
         inject: [ConfigService],
       },
     ]),
