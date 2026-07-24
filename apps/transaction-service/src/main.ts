@@ -17,20 +17,36 @@ async function bootstrap() {
     }),
   );
 
-  const rmqUrl = configService.get<string>('RABBITMQ_URL') || 'amqp://localhost:5672';
+  const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
 
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [rmqUrl],
-      queue: 'transaction_queue',
-      queueOptions: {
-        durable: true,
+  if (isRmq) {
+    const rmqUrl = configService.get<string>('RABBITMQ_URL') || 'amqp://localhost:5672';
+    app.connectMicroservice<MicroserviceOptions>({
+      transport: Transport.RMQ,
+      options: {
+        urls: [rmqUrl],
+        queue: 'transaction_queue',
+        queueOptions: {
+          durable: true,
+          deadLetterExchange: 'amq.direct',
+          deadLetterRoutingKey: 'transaction_dlq',
+        },
+        socketOptions: {
+          heartbeatIntervalInSeconds: 5,
+          reconnectTimeInSeconds: 5,
+        },
       },
-    },
-  });
+    });
+    console.log(`Transaction Microservice is listening on RabbitMQ queue [transaction_queue] (${rmqUrl})`);
+  } else {
+    const host = configService.get<string>('TRANSACTION_SERVICE_HOST') || 'localhost';
+    app.connectMicroservice<MicroserviceOptions>({
+      transport: Transport.TCP,
+      options: { host, port },
+    });
+    console.log(`Transaction Microservice is listening on TCP ${host}:${port}`);
+  }
 
   await app.startAllMicroservices();
-  console.log(`Transaction Microservice is listening on RabbitMQ queue [transaction_queue] (${rmqUrl})`);
 }
 bootstrap();

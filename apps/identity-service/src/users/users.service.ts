@@ -88,7 +88,62 @@ export class UsersService implements OnModuleInit {
         ).exec();
       }
     }
-    console.log('Role and Permission seeds successfully validated.');
+
+    const bcrypt = require('bcryptjs');
+    const defaultPasswordHash = await bcrypt.hash('123456', 10);
+
+    // 1. Seed default Admin user
+    const adminExists = await this.userModel.findOne({ email: 'admin@gmail.com' }).exec();
+    if (!adminExists) {
+      await new this.userModel({
+        email: 'admin@gmail.com',
+        password: defaultPasswordHash,
+        fullname: 'System Administrator',
+        role: 'Admin',
+        address: 'Tru so chinh Hà Nội',
+        phone: '0908200401',
+        gender: 'Male',
+        createdBy: 'system',
+        updatedBy: 'system',
+      }).save();
+      console.log('Default Admin user (admin@gmail.com / 123456) seeded.');
+    }
+
+    // 2. Seed default Manager user
+    const managerExists = await this.userModel.findOne({ email: 'manager@gmail.com' }).exec();
+    if (!managerExists) {
+      await new this.userModel({
+        email: 'manager@gmail.com',
+        password: defaultPasswordHash,
+        fullname: 'Nguyen Van Manager',
+        role: 'Manager',
+        address: 'Chi nhanh TP.HCM',
+        phone: '0908200402',
+        gender: 'Male',
+        createdBy: 'system',
+        updatedBy: 'system',
+      }).save();
+      console.log('Default Manager user (manager@gmail.com / 123456) seeded.');
+    }
+
+    // 3. Seed default Staff user
+    const staffExists = await this.userModel.findOne({ email: 'staff@gmail.com' }).exec();
+    if (!staffExists) {
+      await new this.userModel({
+        email: 'staff@gmail.com',
+        password: defaultPasswordHash,
+        fullname: 'Tran Thi Staff',
+        role: 'Staff',
+        address: 'Chi nhanh Da Nang',
+        phone: '0908200403',
+        gender: 'Female',
+        createdBy: 'system',
+        updatedBy: 'system',
+      }).save();
+      console.log('Default Staff user (staff@gmail.com / 123456) seeded.');
+    }
+
+    console.log('Role, Permission, and User seeds successfully validated.');
   }
 
   async getRoles() {
