@@ -3,21 +3,20 @@ import { NotificationServiceModule } from './notification-service.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
-  // '127.0.0.1' chi nhan ket noi tu chinh container nay - cac container khac (vd
-  // inventory-service) goi sang qua Docker network se bi ECONNREFUSED. Doc host tu env,
-  // giong pattern transaction-service, de bind dung dia chi container khi chay Docker.
-  const host = process.env.NOTIFICATION_SERVICE_HOST || 'localhost';
-  const port = parseInt(process.env.NOTIFICATION_SERVICE_PORT || '3004', 10);
+  const rmqUrl = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(NotificationServiceModule, {
-    transport: Transport.TCP,
+    transport: Transport.RMQ,
     options: {
-      host,
-      port,
+      urls: [rmqUrl],
+      queue: 'notification_queue',
+      queueOptions: {
+        durable: true,
+      },
     },
   });
 
   await app.listen();
-  console.log(`Notification Microservice is listening on TCP ${host}:${port}`);
+  console.log(`Notification Microservice is listening on RabbitMQ queue [notification_queue] (${rmqUrl})`);
 }
 bootstrap();

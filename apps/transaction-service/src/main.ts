@@ -17,17 +17,20 @@ async function bootstrap() {
     }),
   );
 
-  const host = configService.get<string>('TRANSACTION_SERVICE_HOST') || 'localhost';
+  const rmqUrl = configService.get<string>('RABBITMQ_URL') || 'amqp://localhost:5672';
 
   app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
+    transport: Transport.RMQ,
     options: {
-      host,
-      port,
+      urls: [rmqUrl],
+      queue: 'transaction_queue',
+      queueOptions: {
+        durable: true,
+      },
     },
   });
 
   await app.startAllMicroservices();
-  console.log(`Transaction Microservice is listening on TCP ${host}:${port}`);
+  console.log(`Transaction Microservice is listening on RabbitMQ queue [transaction_queue] (${rmqUrl})`);
 }
 bootstrap();
