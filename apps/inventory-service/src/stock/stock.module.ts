@@ -16,10 +16,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('NOTIFICATION_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('NOTIFICATION_SERVICE_PORT', 3004),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'notification_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
       },
@@ -28,10 +31,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         imports: [ConfigModule],
         inject: [ConfigService],
         useFactory: (configService: ConfigService) => ({
-          transport: Transport.TCP,
+          transport: Transport.RMQ,
           options: {
-            host: configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
-            port: configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
+            urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+            queue: 'transaction_queue',
+            queueOptions: {
+              durable: true,
+            },
           },
         }),
       },
