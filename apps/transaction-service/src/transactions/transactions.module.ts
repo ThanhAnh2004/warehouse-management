@@ -14,13 +14,26 @@ import { Transaction } from './entities/transaction.entity';
         name: 'INVENTORY_SERVICE',
         imports: [ConfigModule],
         inject: [ConfigService],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            host: configService.get<string>('INVENTORY_SERVICE_HOST') || 'localhost',
-            port: configService.get<number>('INVENTORY_SERVICE_PORT') || 8002,
-          },
-        }),
+        useFactory: (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
+                  queue: 'inventory_queue',
+                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'inventory_dlq' },
+                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('INVENTORY_SERVICE_HOST') || 'localhost',
+                  port: configService.get<number>('INVENTORY_SERVICE_PORT') || 8002,
+                },
+              };
+        },
       },
     ]),
   ],
