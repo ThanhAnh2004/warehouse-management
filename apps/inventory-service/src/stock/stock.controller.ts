@@ -27,6 +27,21 @@ export class StockController {
     return this.stockService.getAllLocationsWithOccupancy();
   }
 
+  @MessagePattern('location.create')
+  createLocation(@Payload() data: any) {
+    return this.stockService.createLocation(data);
+  }
+
+  @MessagePattern('location.update')
+  updateLocation(@Payload() data: { id: string; [key: string]: any }) {
+    return this.stockService.updateLocation(data.id, data);
+  }
+
+  @MessagePattern('location.delete')
+  deleteLocation(@Payload() id: string) {
+    return this.stockService.deleteLocation(id);
+  }
+
   @MessagePattern('location.suggest_putaway')
   suggestPutaway(@Payload() data: { productId: string; quantity: number }) {
     return this.stockService.suggestPutaway(data.productId, data.quantity || 1);

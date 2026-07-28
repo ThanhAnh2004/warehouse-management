@@ -200,13 +200,23 @@ export class StockService implements OnModuleInit {
       candidate = locations.find(l => (l.maxCapacity - l.currentItemsCount) >= quantity && l.status === LocationStatus.ACTIVE);
     }
 
+    const zoneNames: Record<string, string> = {
+      [ZoneType.HIGH_VAL]: 'Khu Hàng Giá Trị Cao',
+      [ZoneType.LARGE_APPLIANCE]: 'Khu Điện Tử Cỡ Lớn',
+      [ZoneType.ACCESSORIES]: 'Khu Linh Kiện & Phụ Kiện',
+      [ZoneType.ESD_TEMP]: 'Khu Chống Tĩnh Điện ESD',
+    };
+
+    const zoneLabel = candidate ? (zoneNames[candidate.zone] || candidate.zone) : 'Khu Linh Kiện & Phụ Kiện';
+
     return {
       productId,
       productName: product?.name || 'Sản phẩm',
       suggestedLocation: candidate ? candidate.code : 'C01',
       zone: candidate ? candidate.zone : ZoneType.ACCESSORIES,
+      zoneName: zoneLabel,
       reason: candidate 
-        ? `Đề xuất cất vào Kệ [${candidate.code}] thuộc Dãy ${candidate.aisle} (${candidate.zone}) vì còn trống ${candidate.maxCapacity - candidate.currentItemsCount} vị trí.`
+        ? `Đề xuất cất vào Kệ [${candidate.code}] thuộc Dãy ${candidate.aisle} (${zoneLabel}) vì còn trống ${candidate.maxCapacity - candidate.currentItemsCount} vị trí.`
         : 'Sử dụng kệ phụ kiện mặc định C01 do các kệ chuyên dụng khác đã đầy.',
     };
   }
@@ -230,6 +240,57 @@ export class StockService implements OnModuleInit {
       success: true,
       message: `Đã chuyển thành công ${quantity} sản phẩm từ kệ [${fromLocation}] sang kệ [${toLocation}].`,
     };
+  }
+
+  async createLocation(dto: Partial<Location>): Promise<Location> {
+    if (!dto.code) throw new RpcException('Vui lòng nhập Mã Kệ kho (ví dụ: A07, B09...).');
+    const existing = await this.locationRepository.findOne({ where: { code: dto.code } });
+    if (existing) throw new RpcException(`Mã kệ [${dto.code}] đã tồn tại trong hệ thống.`);
+
+    const newLoc = this.locationRepository.create({
+      code: dto.code,
+      zone: dto.zone || ZoneType.ACCESSORIES,
+      aisle: dto.aisle || `Dãy ${dto.code[0]?.toUpperCase() || 'A'}`,
+      maxCapacity: Number(dto.maxCapacity) || 300,
+      maxWeightKg: Number(dto.maxWeightKg) || 500,
+      status: dto.status || LocationStatus.ACTIVE,
+      description: dto.description || '',
+    });
+
+    return this.locationRepository.save(newLoc);
+  }
+
+  async updateLocation(id: string, dto: Partial<Location>): Promise<Location> {
+    const loc = await this.locationRepository.findOne({ where: { id } });
+    if (!loc) throw new RpcException('Không tìm thấy kệ kho.');
+
+    if (dto.code && dto.code !== loc.code) {
+      const existing = await this.locationRepository.findOne({ where: { code: dto.code } });
+      if (existing) throw new RpcException(`Mã kệ [${dto.code}] đã tồn tại trong hệ thống.`);
+      loc.code = dto.code;
+    }
+    if (dto.zone) loc.zone = dto.zone;
+    if (dto.aisle) loc.aisle = dto.aisle;
+    if (dto.maxCapacity !== undefined) loc.maxCapacity = Number(dto.maxCapacity);
+    if (dto.maxWeightKg !== undefined) loc.maxWeightKg = Number(dto.maxWeightKg);
+    if (dto.status) loc.status = dto.status;
+    if (dto.description !== undefined) loc.description = dto.description;
+
+    return this.locationRepository.save(loc);
+  }
+
+  async deleteLocation(id: string): Promise<{ success: boolean; message: string }> {
+    const loc = await this.locationRepository.findOne({ where: { id } });
+    if (!loc) throw new RpcException('Không tìm thấy kệ kho.');
+
+    const inventories = await this.inventoryRepository.find({ where: [{ location: loc.code }, { locationId: loc.id }] });
+    const hasItems = inventories.some(i => i.currentQuantity > 0);
+    if (hasItems) {
+      throw new RpcException(`Không thể xóa Kệ [${loc.code}] vì vẫn đang lưu giữ hàng hóa. Vui lòng chuyển hàng đi trước khi xóa!`);
+    }
+
+    await this.locationRepository.remove(loc);
+    return { success: true, message: `Đã xóa Kệ kho [${loc.code}] thành công.` };
   }
 
   private async estimateAnnualDemand(productId: string): Promise<number> {

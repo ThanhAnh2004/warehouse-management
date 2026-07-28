@@ -278,4 +278,41 @@ export class TransactionsService implements OnModuleInit {
     });
     return { data, total, page, limit };
   }
+
+  async update(id: string, dto: { quantity?: number; note?: string }): Promise<Transaction> {
+    const tx = await this.transactionRepository.findOne({ where: { id } });
+    if (!tx) throw new RpcException('Không tìm thấy giao dịch.');
+
+    if (dto.quantity !== undefined && dto.quantity !== tx.quantity) {
+      const diff = dto.quantity - tx.quantity;
+      tx.quantity = dto.quantity;
+      await this.updateInventory(tx.productId, diff, tx.locationTo || tx.locationFrom || DEFAULT_WAREHOUSE);
+    }
+
+    if (dto.note !== undefined) {
+      tx.note = dto.note;
+    }
+
+    return this.transactionRepository.save(tx);
+  }
+
+  async delete(id: string): Promise<{ success: boolean; message: string }> {
+    const tx = await this.transactionRepository.findOne({ where: { id } });
+    if (!tx) throw new RpcException('Không tìm thấy giao dịch.');
+
+    try {
+      if (tx.type === TransactionType.INBOUND) {
+        await this.updateInventory(tx.productId, -tx.quantity, tx.locationTo || DEFAULT_WAREHOUSE);
+      } else if (tx.type === TransactionType.OUTBOUND) {
+        await this.updateInventory(tx.productId, tx.quantity, tx.locationFrom || DEFAULT_WAREHOUSE);
+      } else if (tx.type === TransactionType.ADJUSTMENT) {
+        await this.updateInventory(tx.productId, -tx.quantity, tx.locationTo || tx.locationFrom || DEFAULT_WAREHOUSE);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Could not revert inventory for deleted transaction ${id}: ${e?.message}`);
+    }
+
+    await this.transactionRepository.remove(tx);
+    return { success: true, message: 'Đã xóa giao dịch thành công.' };
+  }
 }

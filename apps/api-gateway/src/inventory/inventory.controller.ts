@@ -8,6 +8,23 @@ import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
+import { firstValueFrom } from 'rxjs';
+import * as fs from 'fs';
+
+const buildCleanFilename = (originalname: string, defaultPrefix = 'product') => {
+  const ext = extname(originalname).toLowerCase();
+  const nameWithoutExt = originalname.substring(0, originalname.lastIndexOf('.')) || originalname;
+  const cleanName = nameWithoutExt
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const finalName = cleanName || defaultPrefix;
+  const random6 = Math.floor(100000 + Math.random() * 900000).toString();
+  return `${finalName}_${random6}${ext}`;
+};
 
 @ApiTags('Inventory')
 @ApiBearerAuth('JWT-auth')
@@ -16,6 +33,7 @@ import { extname, join } from 'path';
 export class InventoryController {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
+    @Inject('TRANSACTION_SERVICE') private readonly transactionClient: ClientProxy,
     private readonly configService: ConfigService,
   ) {}
 
@@ -23,11 +41,15 @@ export class InventoryController {
   @RequirePermissions('products:create')
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
-      destination: join(__dirname, '..', '..', 'public', 'uploads'),
+      destination: (req, file, cb) => {
+        const uploadDir = join(__dirname, '..', '..', 'public', 'uploads', 'products');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+      },
       filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
-        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+        cb(null, buildCleanFilename(file.originalname, 'product'));
       }
     })
   }))
@@ -48,10 +70,10 @@ export class InventoryController {
     },
   })
   @UsePipes(new ValidationPipe({ whitelist: false }))
-  createProduct(@Body() createProductDto: any, @UploadedFile() file: Express.Multer.File) {
+  async createProduct(@Body() createProductDto: any, @UploadedFile() file: Express.Multer.File) {
     createProductDto = createProductDto || {};
     if (file) {
-      createProductDto.imageUrl = `http://localhost:8000/uploads/${file.filename}`;
+      createProductDto.imageUrl = `/uploads/products/${file.filename}`;
     }
     if (createProductDto.price) {
       createProductDto.price = Number(createProductDto.price);
@@ -65,43 +87,68 @@ export class InventoryController {
     if (createProductDto.quantity) {
       createProductDto.quantity = Number(createProductDto.quantity);
     }
-    return this.inventoryClient.send('product.create', createProductDto);
+
+    const createdProduct = await firstValueFrom(this.inventoryClient.send('product.create', createProductDto));
+
+    // Auto-create initial INBOUND transaction when a product is created with stock quantity
+    const initQty = Number(createProductDto.quantity) || 0;
+    if (createdProduct && createdProduct.id && initQty > 0) {
+      try {
+        await firstValueFrom(this.transactionClient.send('transaction.create', {
+          productId: createdProduct.id,
+          type: 'INBOUND',
+          quantity: initQty,
+          locationTo: createProductDto.location || 'A01',
+          note: 'Khởi tạo hàng tồn kho khi tạo sản phẩm mới vào danh mục',
+          createdBy: createProductDto.createdBy || 'Quản trị viên',
+        }));
+      } catch (e) {
+        // Ignore transaction error if service unreachable
+      }
+    }
+
+    return createdProduct;
   }
 
   @Patch('products/:sku')
   @RequirePermissions('products:update')
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
-      destination: join(__dirname, '..', '..', 'public', 'uploads'),
+      destination: (req, file, cb) => {
+        const uploadDir = join(__dirname, '..', '..', 'public', 'uploads', 'products');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+      },
       filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
-        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+        cb(null, buildCleanFilename(file.originalname, 'product'));
       }
     })
   }))
-  async updateProduct(@Param('sku') sku: string, @Body() body: any, @UploadedFile() file: Express.Multer.File) {
-    try {
-      body = body || {};
-      if (file) {
-        body.imageUrl = `http://localhost:8000/uploads/${file.filename}`;
-      }
-      if (body.price) {
-        body.price = Number(body.price);
-      }
-      if (body.quantity !== undefined && body.quantity !== null) {
-        body.quantity = Number(body.quantity);
-      }
-      return await this.inventoryClient.send('product.update', { sku, updateProductDto: body }).toPromise();
-    } catch (err) {
-      throw err;
+  @ApiConsumes('multipart/form-data')
+  updateProduct(
+    @Param('sku') sku: string,
+    @Body() updateProductDto: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    updateProductDto = updateProductDto || {};
+    if (file) {
+      updateProductDto.imageUrl = `/uploads/products/${file.filename}`;
     }
-  }
-
-  @Delete('products/:sku')
-  @RequirePermissions('products:delete')
-  deleteProduct(@Param('sku') sku: string) {
-    return this.inventoryClient.send('product.delete', sku);
+    if (updateProductDto.price) {
+      updateProductDto.price = Number(updateProductDto.price);
+    }
+    if (updateProductDto.orderingCost) {
+      updateProductDto.orderingCost = Number(updateProductDto.orderingCost);
+    }
+    if (updateProductDto.holdingCostRate) {
+      updateProductDto.holdingCostRate = Number(updateProductDto.holdingCostRate);
+    }
+    if (updateProductDto.quantity) {
+      updateProductDto.quantity = Number(updateProductDto.quantity);
+    }
+    return this.inventoryClient.send('product.update_by_sku', { sku, data: updateProductDto });
   }
 
   @Get('products')
@@ -110,23 +157,17 @@ export class InventoryController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'category', required: false, type: String })
-  @ApiQuery({ name: 'sortBy', required: false, type: String })
-  @ApiQuery({ name: 'sortOrder', required: false, type: String })
   findAllProducts(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('search') search: string = '',
     @Query('category') category: string = '',
-    @Query('sortBy') sortBy: string = 'createdAt',
-    @Query('sortOrder') sortOrder: string = 'DESC'
   ) {
     return this.inventoryClient.send('product.find_all', {
-      page: Number(page),
-      limit: Number(limit),
+      page: parseInt(page, 10) || 1,
+      limit: parseInt(limit, 10) || 10,
       search,
       category,
-      sortBy,
-      sortOrder
     });
   }
 
@@ -134,6 +175,12 @@ export class InventoryController {
   @RequirePermissions('products:read')
   findProductBySku(@Param('sku') sku: string) {
     return this.inventoryClient.send('product.find_by_sku', sku);
+  }
+
+  @Delete('products/:sku')
+  @RequirePermissions('products:delete')
+  deleteProductBySku(@Param('sku') sku: string) {
+    return this.inventoryClient.send('product.delete_by_sku', sku);
   }
 
   @Get('stock/:productId')
@@ -154,6 +201,24 @@ export class InventoryController {
     return this.inventoryClient.send('location.find_all', {});
   }
 
+  @Post('locations')
+  @RequirePermissions('products:create')
+  createLocation(@Body() dto: any) {
+    return this.inventoryClient.send('location.create', dto);
+  }
+
+  @Patch('locations/:id')
+  @RequirePermissions('products:update')
+  updateLocation(@Param('id') id: string, @Body() dto: any) {
+    return this.inventoryClient.send('location.update', { id, ...dto });
+  }
+
+  @Delete('locations/:id')
+  @RequirePermissions('products:delete')
+  deleteLocation(@Param('id') id: string) {
+    return this.inventoryClient.send('location.delete', id);
+  }
+
   @Get('locations/suggest-putaway')
   @RequirePermissions('stock:read')
   suggestPutaway(@Query('productId') productId: string, @Query('quantity') quantity: string) {
@@ -165,18 +230,50 @@ export class InventoryController {
 
   @Post('locations/relocate')
   @RequirePermissions('products:update')
-  relocateStock(@Body() dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
-    return this.inventoryClient.send('location.relocate_stock', dto);
+  async relocateStock(@Body() dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
+    const res = await firstValueFrom(this.inventoryClient.send('location.relocate_stock', dto));
+    try {
+      await firstValueFrom(this.transactionClient.send('transaction.create', {
+        productId: dto.productId,
+        type: 'TRANSFER',
+        quantity: Number(dto.quantity) || 1,
+        locationFrom: dto.fromLocation,
+        locationTo: dto.toLocation,
+        note: `Điều chuyển sản phẩm từ Kệ ${dto.fromLocation} sang Kệ ${dto.toLocation}`,
+        createdBy: 'Quản trị viên',
+      }));
+    } catch (e) {
+      // Ignore
+    }
+    return res;
   }
 
   @Post('locations/add-stock')
   @RequirePermissions('products:update')
-  addStockToLocation(@Body() dto: { productId: string; location: string; quantity: number }) {
-    return this.inventoryClient.send('inventory.update_stock', {
+  async addStockToLocation(@Body() dto: { productId: string; location: string; quantity: number }) {
+    const qty = Number(dto.quantity) || 0;
+    const res = await firstValueFrom(this.inventoryClient.send('inventory.update_stock', {
       productId: dto.productId,
       location: dto.location,
-      quantityChange: Number(dto.quantity)
-    });
+      quantityChange: qty
+    }));
+
+    if (qty > 0) {
+      try {
+        await firstValueFrom(this.transactionClient.send('transaction.create', {
+          productId: dto.productId,
+          type: 'INBOUND',
+          quantity: qty,
+          locationTo: dto.location,
+          note: `Xếp thêm sản phẩm trực tiếp vào Kệ ${dto.location}`,
+          createdBy: 'Quản trị viên',
+        }));
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    return res;
   }
 
   @Get('forecast/:productId')

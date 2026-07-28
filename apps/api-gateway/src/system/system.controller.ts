@@ -72,11 +72,11 @@ export class SystemController {
 
     const targets: ServiceCheck[] = [
       { name: 'API Gateway', category: 'gateway', host: 'self', port: Number(cfg('API_GATEWAY_PORT', '8000')) },
-      { name: 'Identity & Auth Service', category: 'microservice', host: cfg('IDENTITY_SERVICE_HOST', 'warehouse_identity_service'), port: Number(cfg('IDENTITY_SERVICE_PORT', '8001')), queue: 'identity_queue' },
-      { name: 'Inventory Service', category: 'microservice', host: cfg('INVENTORY_SERVICE_HOST', 'warehouse_inventory_service'), port: Number(cfg('INVENTORY_SERVICE_PORT', '8002')), queue: 'inventory_queue' },
-      { name: 'Transaction Service', category: 'microservice', host: cfg('TRANSACTION_SERVICE_HOST', 'warehouse_transaction_service'), port: Number(cfg('TRANSACTION_SERVICE_PORT', '8003')), queue: 'transaction_queue' },
-      { name: 'Notification Service', category: 'microservice', host: cfg('NOTIFICATION_SERVICE_HOST', 'warehouse_notification_service'), port: Number(cfg('NOTIFICATION_SERVICE_PORT', '3004')), queue: 'notification_queue' },
-      { name: 'Reporting Service', category: 'microservice', host: cfg('REPORTING_SERVICE_HOST', 'warehouse_reporting_service'), port: Number(cfg('REPORTING_SERVICE_PORT', '3005')), queue: 'reporting_queue' },
+      { name: 'Identity & Auth Service', category: 'microservice', host: cfg('IDENTITY_SERVICE_HOST', 'localhost'), port: Number(cfg('IDENTITY_SERVICE_PORT', '8001')), queue: 'identity_queue' },
+      { name: 'Inventory Service', category: 'microservice', host: cfg('INVENTORY_SERVICE_HOST', 'localhost'), port: Number(cfg('INVENTORY_SERVICE_PORT', '8002')), queue: 'inventory_queue' },
+      { name: 'Transaction Service', category: 'microservice', host: cfg('TRANSACTION_SERVICE_HOST', 'localhost'), port: Number(cfg('TRANSACTION_SERVICE_PORT', '8003')), queue: 'transaction_queue' },
+      { name: 'Notification Service', category: 'microservice', host: cfg('NOTIFICATION_SERVICE_HOST', 'localhost'), port: Number(cfg('NOTIFICATION_SERVICE_PORT', '3004')), queue: 'notification_queue' },
+      { name: 'Reporting Service', category: 'microservice', host: cfg('REPORTING_SERVICE_HOST', 'localhost'), port: Number(cfg('REPORTING_SERVICE_PORT', '3005')), queue: 'reporting_queue' },
       { name: 'Forecasting Service', category: 'python', host: cfg('FORECASTING_SERVICE_HOST', 'localhost'), port: Number(cfg('FORECASTING_SERVICE_PORT', '8004')) },
       { name: 'Data Processing Service', category: 'python', host: cfg('DATA_PROCESSING_SERVICE_HOST', 'localhost'), port: Number(cfg('DATA_PROCESSING_SERVICE_PORT', '8005')) },
       { name: 'PostgreSQL', category: 'database', host: cfg('POSTGRES_HOST', 'localhost'), port: Number(cfg('POSTGRES_PORT', '5432')) },
@@ -96,7 +96,15 @@ export class SystemController {
           return { ...t, status: rmqCheck.up ? ('up' as const) : ('down' as const), latencyMs: rmqCheck.latencyMs };
         }
         if (t.category === 'python') {
-          const { up, latencyMs } = await this.checkHttp(`http://${t.host}:${t.port}/health`);
+          let { up, latencyMs } = await this.checkHttp(`http://${t.host}:${t.port}/health`);
+          if (!up && t.host !== 'localhost' && t.host !== '127.0.0.1') {
+            const localCheck = await this.checkHttp(`http://localhost:${t.port}/health`);
+            if (localCheck.up) {
+              up = true;
+              latencyMs = localCheck.latencyMs;
+              t.host = 'localhost';
+            }
+          }
           return { ...t, status: up ? ('up' as const) : ('down' as const), latencyMs };
         }
         if (t.category === 'microservice' && isRmq) {
@@ -108,7 +116,15 @@ export class SystemController {
           return { ...t, status: isAlive ? ('up' as const) : ('down' as const), latencyMs: rmqCheck.latencyMs };
         }
 
-        const { up, latencyMs } = await this.checkTcp(t.host, t.port);
+        let { up, latencyMs } = await this.checkTcp(t.host, t.port);
+        if (!up && t.host !== 'localhost' && t.host !== '127.0.0.1') {
+          const localCheck = await this.checkTcp('localhost', t.port);
+          if (localCheck.up) {
+            up = true;
+            latencyMs = localCheck.latencyMs;
+            t.host = 'localhost';
+          }
+        }
         return { ...t, status: up ? ('up' as const) : ('down' as const), latencyMs };
       }),
     );
