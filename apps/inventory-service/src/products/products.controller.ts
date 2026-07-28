@@ -14,8 +14,8 @@ export class ProductsController {
   }
 
   @MessagePattern('product.find_all')
-  findAll(@Payload() payload: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: string }) {
-    return this.productsService.findAll(payload.page, payload.limit, payload.search, payload.sortBy, payload.sortOrder);
+  findAll(@Payload() payload: { page?: number; limit?: number; search?: string; category?: string; sortBy?: string; sortOrder?: string }) {
+    return this.productsService.findAll(payload.page, payload.limit, payload.search, payload.category, payload.sortBy, payload.sortOrder);
   }
 
   @MessagePattern('product.find_by_sku')

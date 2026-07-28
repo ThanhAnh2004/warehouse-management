@@ -8,7 +8,6 @@ import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 
 @ApiTags('Inventory')
 @ApiBearerAuth('JWT-auth')
@@ -50,8 +49,6 @@ export class InventoryController {
   })
   @UsePipes(new ValidationPipe({ whitelist: false }))
   createProduct(@Body() createProductDto: any, @UploadedFile() file: Express.Multer.File) {
-    console.log('UPLOAD RECEIVED BODY:', createProductDto);
-    console.log('UPLOAD RECEIVED FILE:', file);
     createProductDto = createProductDto || {};
     if (file) {
       createProductDto.imageUrl = `http://localhost:8000/uploads/${file.filename}`;
@@ -85,7 +82,6 @@ export class InventoryController {
   }))
   async updateProduct(@Param('sku') sku: string, @Body() body: any, @UploadedFile() file: Express.Multer.File) {
     try {
-      console.log('API-GATEWAY UPDATE PRODUCT LOG:', { sku, body, file });
       body = body || {};
       if (file) {
         body.imageUrl = `http://localhost:8000/uploads/${file.filename}`;
@@ -96,11 +92,8 @@ export class InventoryController {
       if (body.quantity !== undefined && body.quantity !== null) {
         body.quantity = Number(body.quantity);
       }
-      const result = await this.inventoryClient.send('product.update', { sku, updateProductDto: body }).toPromise();
-      console.log('API-GATEWAY UPDATE SUCCESS RESULT:', result);
-      return result;
+      return await this.inventoryClient.send('product.update', { sku, updateProductDto: body }).toPromise();
     } catch (err) {
-      console.error('API-GATEWAY UPDATE FAILED ERROR:', err);
       throw err;
     }
   }
@@ -111,26 +104,27 @@ export class InventoryController {
     return this.inventoryClient.send('product.delete', sku);
   }
 
-
-
   @Get('products')
   @RequirePermissions('products:read')
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, type: String })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, type: String })
   findAllProducts(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('search') search: string = '',
+    @Query('category') category: string = '',
     @Query('sortBy') sortBy: string = 'createdAt',
     @Query('sortOrder') sortOrder: string = 'DESC'
   ) {
     return this.inventoryClient.send('product.find_all', {
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
+      page: Number(page),
+      limit: Number(limit),
       search,
+      category,
       sortBy,
       sortOrder
     });
@@ -154,11 +148,40 @@ export class InventoryController {
     return this.inventoryClient.send('inventory.get_reorder_info', productId);
   }
 
+  @Get('locations')
+  @RequirePermissions('stock:read')
+  getAllLocations() {
+    return this.inventoryClient.send('location.find_all', {});
+  }
+
+  @Get('locations/suggest-putaway')
+  @RequirePermissions('stock:read')
+  suggestPutaway(@Query('productId') productId: string, @Query('quantity') quantity: string) {
+    return this.inventoryClient.send('location.suggest_putaway', {
+      productId,
+      quantity: parseInt(quantity || '1', 10),
+    });
+  }
+
+  @Post('locations/relocate')
+  @RequirePermissions('products:update')
+  relocateStock(@Body() dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
+    return this.inventoryClient.send('location.relocate_stock', dto);
+  }
+
+  @Post('locations/add-stock')
+  @RequirePermissions('products:update')
+  addStockToLocation(@Body() dto: { productId: string; location: string; quantity: number }) {
+    return this.inventoryClient.send('inventory.update_stock', {
+      productId: dto.productId,
+      location: dto.location,
+      quantityChange: Number(dto.quantity)
+    });
+  }
+
   @Get('forecast/:productId')
   @RequirePermissions('forecast:read')
   async getForecast(@Param('productId') productId: string) {
-    // Dùng host/port từ biến môi trường để hoạt động cả khi chạy Docker
-    // (trong Docker phải là forecasting-service:8004, không phải localhost).
     const host = this.configService.get<string>('FORECASTING_SERVICE_HOST', 'localhost');
     const port = this.configService.get<number>('FORECASTING_SERVICE_PORT', 8004);
     try {

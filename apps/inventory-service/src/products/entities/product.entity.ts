@@ -48,7 +48,4 @@ export class Product {
 
   @Column({ type: 'int', default: 20 })
   minStockLevel: number;
-
-  @Column({ type: 'int', nullable: true })
-  maxStockLevel: number;
 }

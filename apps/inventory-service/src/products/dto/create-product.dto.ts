@@ -47,7 +47,4 @@ export class CreateProductDto {
 
   @IsOptional()
   minStockLevel: number;
-
-  @IsOptional()
-  maxStockLevel?: number;
 }

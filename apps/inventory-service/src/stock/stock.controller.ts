@@ -21,4 +21,19 @@ export class StockController {
   getReorderInfo(@Payload() productId: string) {
     return this.stockService.getReorderInfo(productId);
   }
+
+  @MessagePattern('location.find_all')
+  getAllLocations() {
+    return this.stockService.getAllLocationsWithOccupancy();
+  }
+
+  @MessagePattern('location.suggest_putaway')
+  suggestPutaway(@Payload() data: { productId: string; quantity: number }) {
+    return this.stockService.suggestPutaway(data.productId, data.quantity || 1);
+  }
+
+  @MessagePattern('location.relocate_stock')
+  relocateStock(@Payload() data: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
+    return this.stockService.relocateStock(data);
+  }
 }
