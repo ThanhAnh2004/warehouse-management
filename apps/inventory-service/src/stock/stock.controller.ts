@@ -51,4 +51,9 @@ export class StockController {
   relocateStock(@Payload() data: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
     return this.stockService.relocateStock(data);
   }
+
+  @MessagePattern('location.unallocated_products')
+  getUnallocatedProducts() {
+    return this.stockService.getUnallocatedProducts();
+  }
 }

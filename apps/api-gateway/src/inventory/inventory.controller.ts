@@ -42,7 +42,7 @@ export class InventoryController {
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
       destination: (req, file, cb) => {
-        const uploadDir = join(__dirname, '..', '..', 'public', 'uploads', 'products');
+        const uploadDir = join(process.cwd(), 'public', 'uploads', 'products');
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -115,7 +115,7 @@ export class InventoryController {
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
       destination: (req, file, cb) => {
-        const uploadDir = join(__dirname, '..', '..', 'public', 'uploads', 'products');
+        const uploadDir = join(process.cwd(), 'public', 'uploads', 'products');
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -226,6 +226,12 @@ export class InventoryController {
       productId,
       quantity: parseInt(quantity || '1', 10),
     });
+  }
+
+  @Get('locations/unallocated')
+  @RequirePermissions('stock:read')
+  getUnallocatedProducts() {
+    return this.inventoryClient.send('location.unallocated_products', {});
   }
 
   @Post('locations/relocate')

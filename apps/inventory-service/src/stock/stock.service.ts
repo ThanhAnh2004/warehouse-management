@@ -376,4 +376,44 @@ export class StockService implements OnModuleInit {
       this.logger.warn(`checkAndEmitAlert thất bại cho product ${productId}: ${error?.message || error}`);
     }
   }
+
+  async getUnallocatedProducts() {
+    const products = await this.productRepository.find();
+    const locations = await this.locationRepository.find();
+    const validLocCodes = new Set(locations.map(l => l.code));
+    const inventories = await this.inventoryRepository.find();
+
+    const result: any[] = [];
+
+    for (const p of products) {
+      const pInventories = inventories.filter(i => i.productId === p.id);
+      
+      const allocatedQty = pInventories
+        .filter(i => validLocCodes.has(i.location))
+        .reduce((sum, i) => sum + (i.currentQuantity || 0), 0);
+
+      const totalStock = pInventories.reduce((sum, i) => sum + (i.currentQuantity || 0), 0);
+      const unallocatedQty = Math.max(0, totalStock - allocatedQty);
+
+      if (unallocatedQty > 0 || allocatedQty === 0) {
+        const finalUnallocated = unallocatedQty > 0 ? unallocatedQty : (totalStock > 0 ? totalStock : 0);
+        if (finalUnallocated > 0) {
+          result.push({
+            productId: p.id,
+            sku: p.sku,
+            name: p.name,
+            category: p.category,
+            unit: p.unit || 'Chiếc',
+            imageUrl: p.imageUrl,
+            price: p.price,
+            totalStock,
+            allocatedQty,
+            unallocatedQty: finalUnallocated,
+          });
+        }
+      }
+    }
+
+    return result;
+  }
 }
