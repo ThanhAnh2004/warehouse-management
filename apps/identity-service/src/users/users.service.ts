@@ -20,17 +20,43 @@ export class UsersService implements OnModuleInit {
 
   async seedPermissionsAndRoles() {
     const defaultPermissions = [
-      { key: 'users:read', name: 'Read Users', description: 'View list of staff members' },
-      { key: 'users:delete', name: 'Delete User Accounts', description: 'Delete staff member accounts' },
-      { key: 'products:create', name: 'Create Products', description: 'Create new products' },
-      { key: 'products:update', name: 'Update Products', description: 'Update product details' },
-      { key: 'products:delete', name: 'Delete Products', description: 'Delete products from the system' },
-      { key: 'products:read', name: 'Read Products', description: 'View list & details of products' },
-      { key: 'stock:read', name: 'Read Stock', description: 'View inventory stock levels' },
-      { key: 'forecast:read', name: 'Read AI Forecast', description: 'View AI demand forecast predictions' },
-      { key: 'transactions:create', name: 'Create Transactions', description: 'Create inbound/outbound stock transfers' },
-      { key: 'transactions:read', name: 'Read Transaction History', description: 'View historical inventory transfers' },
-      { key: 'reports:read', name: 'Read Reports', description: 'View high-level system dashboards & reports' },
+      // 1. Quản lý Người dùng & Phân quyền (USERS)
+      { key: 'users:read', name: 'Xem Danh Sách Tài Khoản', description: 'Xem danh sách tài khoản thành viên trong hệ thống' },
+      { key: 'users:delete', name: 'Quản Lý & Xóa Tài Khoản', description: 'Tạo mới, phân quyền vai trò & xóa tài khoản người dùng' },
+
+      // 2. Quản lý Sản phẩm (PRODUCTS)
+      { key: 'products:read', name: 'Xem Danh Mục Sản Phẩm', description: 'Xem danh sách & chi tiết thông số sản phẩm' },
+      { key: 'products:create', name: 'Thêm Sản Phẩm Mới', description: 'Thêm sản phẩm mới vào hệ thống danh mục điện máy' },
+      { key: 'products:update', name: 'Cập Nhật Sản Phẩm', description: 'Chỉnh sửa thông tin, giá bán & hình ảnh sản phẩm' },
+      { key: 'products:delete', name: 'Xóa Sản Phẩm Kho', description: 'Xóa sản phẩm khỏi danh mục hệ thống' },
+
+      // 3. Quản lý Tồn Kho (STOCK)
+      { key: 'stock:read', name: 'Xem Tồn Kho Thực Tế', description: 'Theo dõi số lượng tồn kho thời gian thực của các mặt hàng' },
+      { key: 'stock:update', name: 'Cập Nhật Tồn Kho', description: 'Thay đổi trực tiếp số lượng tồn kho của sản phẩm' },
+
+      // 4. Kiểm Kê & Điều Chỉnh (ADJUSTMENTS)
+      { key: 'adjustments:read', name: 'Xem Báo Cáo Kiểm Kê', description: 'Xem lịch sử & chi tiết các phiếu kiểm kê điều chỉnh kho' },
+      { key: 'adjustments:create', name: 'Tạo Báo Cáo Kiểm Kê', description: 'Lập phiếu kiểm kê & điều chỉnh số lượng tồn kho thực tế' },
+      { key: 'adjustments:update', name: 'Sửa Báo Cáo Kiểm Kê', description: 'Chỉnh sửa thông tin báo cáo điều chỉnh kiểm kê' },
+      { key: 'adjustments:delete', name: 'Xóa Báo Cáo Kiểm Kê', description: 'Xóa phiếu kiểm kê điều chỉnh khỏi hệ thống' },
+
+      // 5. Giao Dịch Kho (TRANSACTIONS)
+      { key: 'transactions:read', name: 'Xem Lịch Sử Giao Dịch', description: 'Xem nhật ký Nhập kho, Xuất kho, Điều chuyển kệ' },
+      { key: 'transactions:create', name: 'Tạo Giao Dịch Kho Mới', description: 'Lập đơn Nhập kho, Xuất kho & Điều chuyển vị trí kệ kho' },
+
+      // 6. Kệ Kho & Sơ Đồ Kho (LOCATIONS)
+      { key: 'locations:read', name: 'Xem Sơ Đồ & Danh Mục Kệ', description: 'Xem mặt bằng 2D & danh sách sức chứa các kệ kho' },
+      { key: 'locations:create', name: 'Thêm Kệ Kho Mới', description: 'Khai báo thêm kệ kho mới vào mặt bằng' },
+      { key: 'locations:update', name: 'Cập Nhật Kệ Kho', description: 'Sửa tên kệ kho, mã kệ & sức chứa tối đa' },
+      { key: 'locations:delete', name: 'Xóa Kệ Kho', description: 'Xóa vị trí kệ kho không còn sử dụng' },
+
+      // 7. Báo Cáo & Dự Báo (REPORTS & FORECAST)
+      { key: 'reports:read', name: 'Xem Báo Cáo & Xuất CSV', description: 'Xem biểu đồ thống kê tổng quan, báo cáo & xuất file CSV' },
+      { key: 'forecast:read', name: 'Xem Dự Báo Nhu Cầu AI', description: 'Xem phân tích nhu cầu bằng AI & công thức EOQ' },
+
+      // 8. Cảnh Báo & Giám Sát (ALERTS & SYSTEM)
+      { key: 'alerts:read', name: 'Xem Cảnh Báo Kho Hàng', description: 'Xem thông báo hết hàng & cảnh báo chạm ngưỡng an toàn' },
+      { key: 'system:read', name: 'Giám Sát Hệ Thống Microservices', description: 'Theo dõi CPU, RAM, Redis & log hoạt động server' },
     ];
 
     // Seed Permissions with updates
@@ -58,10 +84,18 @@ export class UsersService implements OnModuleInit {
           'products:update',
           'products:read',
           'stock:read',
-          'forecast:read',
+          'stock:update',
+          'adjustments:read',
+          'adjustments:create',
+          'adjustments:update',
           'transactions:create',
           'transactions:read',
+          'locations:read',
+          'locations:create',
+          'locations:update',
           'reports:read',
+          'forecast:read',
+          'alerts:read',
         ],
       },
       {
@@ -70,21 +104,30 @@ export class UsersService implements OnModuleInit {
         permissions: [
           'products:read',
           'stock:read',
+          'adjustments:read',
+          'adjustments:create',
           'transactions:create',
           'transactions:read',
+          'locations:read',
+          'alerts:read',
         ],
       },
     ];
 
-    // Seed Roles with description updates
+    // Seed Roles with description & permissions updates
     for (const role of defaultRoles) {
       const exists = await this.roleModel.findOne({ name: role.name }).exec();
       if (!exists) {
         await new this.roleModel(role).save();
       } else {
+        // Automatically sync permissions for Admin and update description
+        const updateFields: any = { description: role.description };
+        if (role.name === 'Admin') {
+          updateFields.permissions = allPermKeys;
+        }
         await this.roleModel.findOneAndUpdate(
           { name: role.name },
-          { $set: { description: role.description } }
+          { $set: updateFields }
         ).exec();
       }
     }

@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transaction, TransactionStatus, TransactionType } from './entities/transaction.entity';
@@ -9,12 +9,96 @@ import { firstValueFrom } from 'rxjs';
 const DEFAULT_WAREHOUSE = 'DEFAULT_WAREHOUSE';
 
 @Injectable()
-export class TransactionsService {
+export class TransactionsService implements OnModuleInit {
+  private readonly logger = new Logger(TransactionsService.name);
+
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
+
+  async onModuleInit() {
+    setTimeout(() => {
+      this.seedHistoricalTransactions();
+    }, 4000);
+  }
+
+  async seedHistoricalTransactions() {
+    try {
+      const count = await this.transactionRepository.count();
+      if (count >= 100) {
+        this.logger.log(`Skipping transactions seed, DB already has ${count} transaction records.`);
+        return;
+      }
+
+      this.logger.log('Fetching products to seed historical OUTBOUND transactions for AI Forecasting & EOQ...');
+      const res: any = await firstValueFrom(
+        this.inventoryClient.send('product.find_all', { limit: 100 })
+      );
+
+      const products = res?.data || [];
+      if (products.length === 0) {
+        this.logger.warn('No products found to seed transactions for.');
+        return;
+      }
+
+      const locations = ['A01', 'A02', 'A03', 'A04', 'B01', 'B02', 'C01', 'D01'];
+      const now = new Date();
+      const transactionsToSave: Transaction[] = [];
+
+      for (const prod of products) {
+        const prodId = prod.id;
+        const loc = prod.location || locations[Math.floor(Math.random() * locations.length)];
+
+        // 1. Baseline INBOUND transaction 60 days ago
+        const inboundDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+        const inboundTx = this.transactionRepository.create({
+          productId: prodId,
+          type: TransactionType.INBOUND,
+          quantity: 300,
+          locationTo: loc,
+          status: TransactionStatus.COMPLETED,
+          createdBy: 'seed',
+          note: 'Nhập kho ban đầu từ đại lý phân phối',
+          createdAt: inboundDate,
+        });
+        transactionsToSave.push(inboundTx);
+
+        // 2. Generate 18 OUTBOUND sales transactions spread across past 45 days
+        const numOutbound = 18;
+        for (let i = 1; i <= numOutbound; i++) {
+          const daysAgo = Math.max(0.5, (45 - (i * (45 / numOutbound))) + (Math.random() * 1.5 - 0.75));
+          const txDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+          
+          // Realistic daily sales quantity depending on price
+          const price = Number(prod.price || 0);
+          const baseQty = price > 30000000 
+            ? Math.floor(Math.random() * 3) + 1 
+            : price > 10000000 
+            ? Math.floor(Math.random() * 5) + 2 
+            : Math.floor(Math.random() * 10) + 4;
+
+          const outTx = this.transactionRepository.create({
+            productId: prodId,
+            type: TransactionType.OUTBOUND,
+            quantity: baseQty,
+            locationFrom: loc,
+            status: TransactionStatus.COMPLETED,
+            createdBy: 'seed',
+            note: `Xuất kho bán lẻ siêu thị điện máy #${Math.floor(100000 + Math.random() * 900000)}`,
+            createdAt: txDate,
+          });
+          transactionsToSave.push(outTx);
+        }
+      }
+
+      await this.transactionRepository.save(transactionsToSave);
+      this.logger.log(`Successfully seeded ${transactionsToSave.length} historical transactions into PostgreSQL DB.`);
+    } catch (err: any) {
+      this.logger.warn(`Failed to seed historical transactions: ${err.message}`);
+    }
+  }
 
   async create(createTransactionDto: CreateTransactionDto): Promise<Transaction> {
     this.validateBusinessRules(createTransactionDto);
@@ -42,8 +126,6 @@ export class TransactionsService {
     return this.transactionRepository.save(savedTransaction);
   }
 
-  // Quy tắc nghiệp vụ theo từng loại giao dịch: kiểm tra trước khi ghi bất kỳ dòng nào
-  // vào DB, để tránh tạo ra các bản ghi PENDING "rác" từ input sai định dạng.
   private validateBusinessRules(dto: CreateTransactionDto) {
     const { type, quantity, locationFrom, locationTo } = dto;
 
@@ -60,11 +142,13 @@ export class TransactionsService {
     if (!quantity || quantity <= 0) {
       throw new RpcException('quantity phải là số dương với INBOUND/OUTBOUND/TRANSFER');
     }
-    if (type === TransactionType.INBOUND && !locationTo) {
-      throw new RpcException('INBOUND yêu cầu locationTo');
+    if (type === TransactionType.INBOUND) {
+      if (!dto.locationTo) {
+        dto.locationTo = DEFAULT_WAREHOUSE;
+      }
     }
     if (type === TransactionType.OUTBOUND && !locationFrom) {
-      throw new RpcException('OUTBOUND yêu cầu locationFrom');
+      throw new RpcException('OUTBOUND yêu cầu Từ Kệ Kho (locationFrom)');
     }
     if (type === TransactionType.TRANSFER && (!locationFrom || !locationTo)) {
       throw new RpcException('TRANSFER yêu cầu cả locationFrom và locationTo');
@@ -88,7 +172,6 @@ export class TransactionsService {
         break;
 
       case TransactionType.ADJUSTMENT:
-        // quantity mang dấu sẵn: dương = tăng tồn kho thực tế, âm = giảm (hao hụt/kiểm kê)
         await this.updateInventory(tx.productId, tx.quantity, tx.locationTo || tx.locationFrom || DEFAULT_WAREHOUSE);
         break;
 
@@ -99,12 +182,8 @@ export class TransactionsService {
   }
 
   private async applyTransfer(tx: Transaction): Promise<void> {
-    // Xuất ở kho nguồn trước
     await this.updateInventory(tx.productId, -tx.quantity, tx.locationFrom);
 
-    // Nhập ở kho đích; nếu bước này lỗi (vd kho đích lỗi kết nối), phải hoàn tác
-    // lại phần đã xuất ở nguồn - nếu không, hàng sẽ bị "biến mất" khỏi hệ thống
-    // (đã trừ ở nguồn nhưng chưa cộng ở đích).
     try {
       await this.updateInventory(tx.productId, tx.quantity, tx.locationTo);
     } catch (destError) {
@@ -198,5 +277,42 @@ export class TransactionsService {
       take: limit,
     });
     return { data, total, page, limit };
+  }
+
+  async update(id: string, dto: { quantity?: number; note?: string }): Promise<Transaction> {
+    const tx = await this.transactionRepository.findOne({ where: { id } });
+    if (!tx) throw new RpcException('Không tìm thấy giao dịch.');
+
+    if (dto.quantity !== undefined && dto.quantity !== tx.quantity) {
+      const diff = dto.quantity - tx.quantity;
+      tx.quantity = dto.quantity;
+      await this.updateInventory(tx.productId, diff, tx.locationTo || tx.locationFrom || DEFAULT_WAREHOUSE);
+    }
+
+    if (dto.note !== undefined) {
+      tx.note = dto.note;
+    }
+
+    return this.transactionRepository.save(tx);
+  }
+
+  async delete(id: string): Promise<{ success: boolean; message: string }> {
+    const tx = await this.transactionRepository.findOne({ where: { id } });
+    if (!tx) throw new RpcException('Không tìm thấy giao dịch.');
+
+    try {
+      if (tx.type === TransactionType.INBOUND) {
+        await this.updateInventory(tx.productId, -tx.quantity, tx.locationTo || DEFAULT_WAREHOUSE);
+      } else if (tx.type === TransactionType.OUTBOUND) {
+        await this.updateInventory(tx.productId, tx.quantity, tx.locationFrom || DEFAULT_WAREHOUSE);
+      } else if (tx.type === TransactionType.ADJUSTMENT) {
+        await this.updateInventory(tx.productId, -tx.quantity, tx.locationTo || tx.locationFrom || DEFAULT_WAREHOUSE);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Could not revert inventory for deleted transaction ${id}: ${e?.message}`);
+    }
+
+    await this.transactionRepository.remove(tx);
+    return { success: true, message: 'Đã xóa giao dịch thành công.' };
   }
 }

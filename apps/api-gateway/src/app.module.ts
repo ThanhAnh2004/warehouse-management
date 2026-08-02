@@ -19,7 +19,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', '..', 'public'),
+      rootPath: join(process.cwd(), 'public'),
     }),
     CacheModule.registerAsync({
       isGlobal: true,
