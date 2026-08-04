@@ -76,7 +76,12 @@ export class UsersController {
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return await firstValueFrom(this.identityClient.send('users.findOne', { id }));
+    try {
+      const res = await firstValueFrom(this.identityClient.send('users.findOne', { id }));
+      return res || { success: false, message: 'User not found' };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error fetching user profile' };
+    }
   }
 
   @Patch(':id')

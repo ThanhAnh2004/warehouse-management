@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { RpcException } from '@nestjs/microservices';
 import { User, UserDocument } from './schemas/user.schema';
 import { Role, RoleDocument } from './schemas/role.schema';
@@ -45,13 +45,15 @@ export class UsersService implements OnModuleInit {
       { key: 'transactions:create', name: 'Tạo Giao Dịch Kho Mới', description: 'Lập đơn Nhập kho, Xuất kho & Điều chuyển vị trí kệ kho' },
 
       // 6. Kệ Kho & Sơ Đồ Kho (LOCATIONS)
-      { key: 'locations:read', name: 'Xem Sơ Đồ & Danh Mục Kệ', description: 'Xem mặt bằng 2D & danh sách sức chứa các kệ kho' },
+      { key: 'locations:read', name: 'Xem Sơ Đồ Kệ Kho', description: 'Xem mặt bằng 2D, tỷ lệ lấp đầy & chi tiết 20 tầng kệ kho' },
       { key: 'locations:create', name: 'Thêm Kệ Kho Mới', description: 'Khai báo thêm kệ kho mới vào mặt bằng' },
       { key: 'locations:update', name: 'Cập Nhật Kệ Kho', description: 'Sửa tên kệ kho, mã kệ & sức chứa tối đa' },
       { key: 'locations:delete', name: 'Xóa Kệ Kho', description: 'Xóa vị trí kệ kho không còn sử dụng' },
+      { key: 'locations:allocate', name: 'AI Gợi Ý & Phân Hàng Vào Kệ', description: 'Phân hàng từ danh sách chờ vào tầng kệ & Sử dụng AI gợi ý cất hàng' },
 
-      // 7. Báo Cáo & Dự Báo (REPORTS & FORECAST)
-      { key: 'reports:read', name: 'Xem Báo Cáo & Xuất CSV', description: 'Xem biểu đồ thống kê tổng quan, báo cáo & xuất file CSV' },
+      // 7. Báo Cáo & Thống Kê (REPORTS & FORECAST)
+      { key: 'reports:read', name: 'Xem Báo Cáo & Thống Kê Chi Tiết', description: 'Xem biểu đồ biến động tháng, top bán chạy & top doanh thu' },
+      { key: 'reports:export', name: 'Xuất Báo Cáo Excel / CSV', description: 'Xuất dữ liệu báo cáo thống kê doanh thu & tồn kho ra file Excel' },
       { key: 'forecast:read', name: 'Xem Dự Báo Nhu Cầu AI', description: 'Xem phân tích nhu cầu bằng AI & công thức EOQ' },
 
       // 8. Cảnh Báo & Giám Sát (ALERTS & SYSTEM)
@@ -73,43 +75,36 @@ export class UsersService implements OnModuleInit {
     const defaultRoles = [
       {
         name: 'Admin',
-        description: 'System Administrator',
+        description: 'System Administrator (Toàn quyền hệ thống)',
         permissions: allPermKeys,
       },
       {
         name: 'Manager',
-        description: 'Warehouse Manager',
+        description: 'Warehouse Manager (Quản lý kho hàng & Báo cáo)',
         permissions: [
-          'products:create',
-          'products:update',
-          'products:read',
-          'stock:read',
-          'stock:update',
-          'adjustments:read',
-          'adjustments:create',
-          'adjustments:update',
-          'transactions:create',
-          'transactions:read',
-          'locations:read',
-          'locations:create',
-          'locations:update',
-          'reports:read',
+          'users:read',
+          'products:read', 'products:create', 'products:update', 'products:delete',
+          'stock:read', 'stock:update',
+          'adjustments:read', 'adjustments:create', 'adjustments:update', 'adjustments:delete',
+          'transactions:read', 'transactions:create',
+          'locations:read', 'locations:create', 'locations:update', 'locations:allocate',
+          'reports:read', 'reports:export',
           'forecast:read',
-          'alerts:read',
+          'alerts:read'
         ],
       },
       {
         name: 'Staff',
-        description: 'Warehouse Operator',
+        description: 'Warehouse Operator (Nhân viên vận hành kho)',
         permissions: [
+          'users:read',
           'products:read',
-          'stock:read',
-          'adjustments:read',
-          'adjustments:create',
-          'transactions:create',
-          'transactions:read',
-          'locations:read',
-          'alerts:read',
+          'stock:read', 'stock:update',
+          'adjustments:read', 'adjustments:create',
+          'transactions:read', 'transactions:create',
+          'locations:read', 'locations:allocate',
+          'reports:read',
+          'alerts:read'
         ],
       },
     ];
@@ -270,7 +265,27 @@ export class UsersService implements OnModuleInit {
 
   // Tìm một người dùng theo ID
   async findOne(id: string) {
-    return await this.userModel.findById(id).select('-password').exec();
+    try {
+      if (!id) return null;
+      let user: any = null;
+      if (Types.ObjectId.isValid(id)) {
+        user = await this.userModel.findById(id).select('-password').exec().catch(() => null);
+      }
+      if (!user) {
+        user = await this.userModel.findOne({ _id: id as any }).select('-password').exec().catch(() => null);
+      }
+      if (!user) {
+        user = await this.userModel.collection.findOne({ _id: id as any });
+      }
+      if (!user) return null;
+      const userObj: any = user.toObject ? user.toObject() : { ...user };
+      delete userObj.password;
+      userObj.id = userObj._id ? userObj._id.toString() : id;
+      return userObj;
+    } catch (error: any) {
+      console.error('findOne error in identity-service:', error?.message || error);
+      return null;
+    }
   }
 
   // Tìm một người dùng theo ID kèm mật khẩu
@@ -280,20 +295,35 @@ export class UsersService implements OnModuleInit {
 
   // Cập nhật thông tin người dùng
   async update(id: string, updateData: any) {
-    // Loại bỏ không cho sửa email và password qua hàm này
     const { email: _, password: __, ...allowedUpdates } = updateData;
-    
-    const updatedUser = await this.userModel.findByIdAndUpdate(
-      id,
-      { $set: allowedUpdates },
-      { new: true, runValidators: true }
-    ).select('-password').exec();
 
-    if (!updatedUser) {
-      return { success: false, message: 'User not found' };
+    try {
+      let updatedUser: any = null;
+      if (Types.ObjectId.isValid(id)) {
+        updatedUser = await this.userModel.findByIdAndUpdate(
+          id,
+          { $set: allowedUpdates },
+          { new: true, runValidators: true }
+        ).select('-password').exec().catch(() => null);
+      }
+      if (!updatedUser) {
+        updatedUser = await this.userModel.findOneAndUpdate(
+          { _id: id as any },
+          { $set: allowedUpdates },
+          { new: true }
+        ).select('-password').exec().catch(() => null);
+      }
+
+      if (!updatedUser) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const userObj: any = updatedUser.toObject ? updatedUser.toObject() : updatedUser;
+      userObj.id = userObj._id ? userObj._id.toString() : id;
+      return { success: true, data: userObj };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Update failed' };
     }
-    
-    return { success: true, data: updatedUser };
   }
 
   // Xóa người dùng

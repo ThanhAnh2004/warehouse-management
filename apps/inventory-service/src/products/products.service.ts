@@ -149,7 +149,7 @@ export class ProductsService implements OnModuleInit {
       const initialQuantity = quantity ? Number(quantity) : 0;
       const inventory = this.inventoryRepository.create({
         productId: savedProduct.id,
-        location: 'A01',
+        location: (createProductDto as any).location || 'DEFAULT_WAREHOUSE',
         currentQuantity: initialQuantity,
         reservedQuantity: 0,
         createdBy: createProductDto.createdBy || 'system',
