@@ -4,12 +4,13 @@ import { StockController } from './stock.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Inventory } from './entities/inventory.entity';
 import { Product } from '../products/entities/product.entity';
+import { Location } from './entities/location.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Inventory, Product]),
+    TypeOrmModule.forFeature([Inventory, Product, Location]),
     ClientsModule.registerAsync([
       {
         name: 'NOTIFICATION_SERVICE',

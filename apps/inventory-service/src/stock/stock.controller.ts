@@ -21,4 +21,39 @@ export class StockController {
   getReorderInfo(@Payload() productId: string) {
     return this.stockService.getReorderInfo(productId);
   }
+
+  @MessagePattern('location.find_all')
+  getAllLocations() {
+    return this.stockService.getAllLocationsWithOccupancy();
+  }
+
+  @MessagePattern('location.create')
+  createLocation(@Payload() data: any) {
+    return this.stockService.createLocation(data);
+  }
+
+  @MessagePattern('location.update')
+  updateLocation(@Payload() data: { id: string; [key: string]: any }) {
+    return this.stockService.updateLocation(data.id, data);
+  }
+
+  @MessagePattern('location.delete')
+  deleteLocation(@Payload() id: string) {
+    return this.stockService.deleteLocation(id);
+  }
+
+  @MessagePattern('location.suggest_putaway')
+  suggestPutaway(@Payload() data: { productId: string; quantity: number }) {
+    return this.stockService.suggestPutaway(data.productId, data.quantity || 1);
+  }
+
+  @MessagePattern('location.relocate_stock')
+  relocateStock(@Payload() data: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
+    return this.stockService.relocateStock(data);
+  }
+
+  @MessagePattern('location.unallocated_products')
+  getUnallocatedProducts() {
+    return this.stockService.getUnallocatedProducts();
+  }
 }

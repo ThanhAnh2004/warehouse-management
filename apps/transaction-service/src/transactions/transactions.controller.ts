@@ -12,6 +12,16 @@ export class TransactionsController {
     return this.transactionsService.create(createTransactionDto);
   }
 
+  @MessagePattern('transaction.update')
+  update(@Payload() payload: { id: string; quantity?: number; note?: string }) {
+    return this.transactionsService.update(payload.id, payload);
+  }
+
+  @MessagePattern('transaction.delete')
+  delete(@Payload() id: string) {
+    return this.transactionsService.delete(id);
+  }
+
   @MessagePattern('transaction.findAll')
   findAll(@Payload() payload: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'ASC' | 'DESC'; search?: string; type?: string; status?: string } = {}) {
     return this.transactionsService.findAll(payload);

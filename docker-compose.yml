@@ -33,6 +33,8 @@ services:
       - notification-service
       - reporting-service
     env_file: .env.docker
+    volumes:
+      - ./public/uploads:/app/public/uploads
     networks:
       - wms_network
 

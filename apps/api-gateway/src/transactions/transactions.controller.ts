@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Inject, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, Inject, UseGuards, Request, Query, Param } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -25,6 +25,18 @@ export class TransactionsController {
       createdBy: req.user.sub,
     };
     return this.transactionClient.send('transaction.create', payload);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('transactions:create')
+  updateTransaction(@Param('id') id: string, @Body() body: any) {
+    return this.transactionClient.send('transaction.update', { id, ...body });
+  }
+
+  @Delete(':id')
+  @RequirePermissions('transactions:create')
+  deleteTransaction(@Param('id') id: string) {
+    return this.transactionClient.send('transaction.delete', id);
   }
 
   @Get()

@@ -14,8 +14,8 @@ export class ProductsController {
   }
 
   @MessagePattern('product.find_all')
-  findAll(@Payload() payload: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: string }) {
-    return this.productsService.findAll(payload.page, payload.limit, payload.search, payload.sortBy, payload.sortOrder);
+  findAll(@Payload() payload: { page?: number; limit?: number; search?: string; category?: string; sortBy?: string; sortOrder?: string }) {
+    return this.productsService.findAll(payload.page, payload.limit, payload.search, payload.category, payload.sortBy, payload.sortOrder);
   }
 
   @MessagePattern('product.find_by_sku')
@@ -23,13 +23,27 @@ export class ProductsController {
     return this.productsService.findBySku(sku);
   }
 
+  @MessagePattern('product.update_by_sku')
+  updateBySku(@Payload() payload: { sku: string; data: UpdateProductDto; updateProductDto?: UpdateProductDto }) {
+    const updateData = payload.data || payload.updateProductDto || payload;
+    return this.productsService.update(payload.sku, updateData);
+  }
+
   @MessagePattern('product.update')
-  update(@Payload() payload: { sku: string; updateProductDto: UpdateProductDto }) {
-    return this.productsService.update(payload.sku, payload.updateProductDto);
+  update(@Payload() payload: { sku: string; updateProductDto?: UpdateProductDto; data?: UpdateProductDto }) {
+    const updateData = payload.data || payload.updateProductDto || payload;
+    return this.productsService.update(payload.sku, updateData);
+  }
+
+  @MessagePattern('product.delete_by_sku')
+  deleteBySku(@Payload() payload: any) {
+    const sku = typeof payload === 'string' ? payload : payload?.sku;
+    return this.productsService.delete(sku);
   }
 
   @MessagePattern('product.delete')
-  delete(@Payload() sku: string) {
+  delete(@Payload() payload: any) {
+    const sku = typeof payload === 'string' ? payload : payload?.sku;
     return this.productsService.delete(sku);
   }
 }

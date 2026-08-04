@@ -29,7 +29,13 @@ export class ReportingServiceService {
       const qty = parseInt(p.quantity as any, 10) || 0;
       return acc + (price * qty);
     }, 0);
-    const lowStock = products.filter(p => (p.quantity || 0) < (p.minStockLevel ?? 20)).length;
+    const totalStockQuantity = products.reduce((acc, p) => {
+      const qty = parseInt(p.quantity as any, 10) || 0;
+      return acc + qty;
+    }, 0);
+
+    const lowStockItems = products.filter(p => (p.quantity || 0) < (p.minStockLevel ?? 20));
+    const lowStock = lowStockItems.length;
 
     // 2. Fetch all transactions
     let transactionsData;
@@ -45,12 +51,25 @@ export class ReportingServiceService {
     const totalImports = transactions.filter(t => t.type === 'INBOUND').reduce((acc, t) => acc + t.quantity, 0);
     const totalExports = transactions.filter(t => t.type === 'OUTBOUND').reduce((acc, t) => acc + t.quantity, 0);
 
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const monthlyTransactionsCount = transactions.filter(t => {
+      if (!t.createdAt) return false;
+      const d = new Date(t.createdAt);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    }).length;
+
     return {
       totalProducts,
       totalInventoryValue,
+      totalStockQuantity,
       totalImports,
       totalExports,
+      totalTransactions: transactions.length,
+      monthlyTransactionsCount,
       lowStock,
+      lowStockItems,
       reportDate: new Date().toISOString()
     };
   }

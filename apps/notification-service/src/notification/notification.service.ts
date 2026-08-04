@@ -67,8 +67,8 @@ export class NotificationService {
     }
 
     const message = isLow
-      ? `Product ${payload.productName} has fallen below the minimum stock level (Current: ${payload.newStock} / Min: ${threshold}).`
-      : `Product ${payload.productName} has exceeded the maximum stock level (Current: ${payload.newStock} / Max: ${threshold}).`;
+      ? `Sản phẩm ${payload.productName} đã giảm xuống dưới mức tồn kho tối thiểu (Hiện tại: ${payload.newStock} / Tối thiểu: ${threshold}).`
+      : `Sản phẩm ${payload.productName} đã vượt quá mức tồn kho tối đa (Hiện tại: ${payload.newStock} / Tối đa: ${threshold}).`;
 
     this.logger.warn(`${alertType} for ${payload.productName} (stock=${payload.newStock}, threshold=${threshold})! Creating alert.`);
     const newAlert = new this.alertModel({
@@ -85,23 +85,23 @@ export class NotificationService {
 
   async sendStockAlertEmail(alertType: string, productName: string, currentQuantity: number, threshold?: number) {
     const isLow = alertType !== 'OVERSTOCK';
-    const thresholdText = threshold !== undefined ? ` (threshold: ${threshold})` : '';
-    const subject = isLow ? '🚨 LOW STOCK ALERT' : '📦 OVERSTOCK ALERT';
+    const thresholdText = threshold !== undefined ? ` (Ngưỡng: ${threshold})` : '';
+    const subject = isLow ? '🚨 CẢNH BÁO THIẾU TỒN KHO' : '📦 CẢNH BÁO VƯỢT TỒN KHO';
     const headline = isLow
-      ? `Product: ${productName} is currently very low in stock.`
-      : `Product: ${productName} has exceeded its maximum stock level.`;
-    const action = isLow ? 'Please restock immediately!' : 'Consider slowing down inbound / running a promotion.';
+      ? `Sản phẩm: ${productName} hiện tại đang thiếu tồn kho nghiêm trọng.`
+      : `Sản phẩm: ${productName} đã vượt quá số lượng tồn kho cho phép.`;
+    const action = isLow ? 'Vui lòng tiến hành nhập thêm hàng ngay lập tức!' : 'Cần xem xét chương trình xả hàng hoặc ngưng nhập thêm.';
     const color = isLow ? 'red' : '#d97706';
 
     const mailOptions = {
-      from: '"Warehouse System" <alert@warehouse.local>',
+      from: '"Hệ thống Quản lý Kho" <alert@warehouse.local>',
       to: 'manager@gmail.com',
       subject,
-      text: `${headline}\nCurrent quantity: ${currentQuantity}${thresholdText}.\n${action}`,
+      text: `${headline}\nSố lượng hiện tại: ${currentQuantity}${thresholdText}.\n${action}`,
       html: `<h3>${subject}</h3>
              <p>${headline}</p>
-             <p>Current quantity: <b style="color:${color}">${currentQuantity}</b>${thresholdText}</p>
-             <p>${action}</p>`
+             <p>Số lượng hiện tại: <b style="color:${color}">${currentQuantity}</b>${thresholdText}</p>
+             <p><b>${action}</b></p>`
     };
 
     try {

@@ -1,35 +1,54 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Inject, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Inject, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { AuthGuard } from './auth/auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RequirePermissions } from './common/decorators/permissions.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import * as fs from 'fs';
 
 import { UpdateUserDto } from './auth/dto/update-user.dto';
+
+const buildCleanFilename = (originalname: string, defaultPrefix = 'avatar') => {
+  const ext = extname(originalname).toLowerCase();
+  const nameWithoutExt = originalname.substring(0, originalname.lastIndexOf('.')) || originalname;
+  const cleanName = nameWithoutExt
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const finalName = cleanName || defaultPrefix;
+  const random6 = Math.floor(100000 + Math.random() * 900000).toString();
+  return `${finalName}_${random6}${ext}`;
+};
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
 @Controller('users')
-@UseGuards(AuthGuard, PermissionsGuard) // Bảo mật bằng AuthGuard (kiểm tra JWT) và PermissionsGuard
+@UseGuards(AuthGuard, PermissionsGuard)
 export class UsersController {
   constructor(
     @Inject('IDENTITY_SERVICE') private readonly identityClient: ClientProxy,
   ) {}
 
-  @RequirePermissions('users:read') // Chỉ User có quyền users:read mới được xem danh sách tất cả user
+  @RequirePermissions('users:read')
   @Get()
   async findAll() {
     return await firstValueFrom(this.identityClient.send('users.findAll', {}));
   }
 
-  @RequirePermissions('users:delete') // Chỉ Admin mới xem được danh sách vai trò
+  @RequirePermissions('users:delete')
   @Get('roles')
   async getRoles() {
     return await firstValueFrom(this.identityClient.send('roles.findAll', {}));
   }
 
-  @RequirePermissions('users:delete') // Admin can update role permissions/description
+  @RequirePermissions('users:delete')
   @Patch('roles/:name')
   async updateRole(@Param('name') name: string, @Body() body: { permissions?: string[]; description?: string }) {
     return await firstValueFrom(
@@ -37,19 +56,19 @@ export class UsersController {
     );
   }
 
-  @RequirePermissions('users:delete') // Chỉ Admin mới tạo được vai trò mới
+  @RequirePermissions('users:delete')
   @Post('roles')
   async createRole(@Body() body: { name: string; description?: string }) {
     return await firstValueFrom(this.identityClient.send('roles.create', body));
   }
 
-  @RequirePermissions('users:delete') // Chỉ Admin mới xóa được vai trò
+  @RequirePermissions('users:delete')
   @Delete('roles/:name')
   async deleteRole(@Param('name') name: string) {
     return await firstValueFrom(this.identityClient.send('roles.delete', { name }));
   }
 
-  @RequirePermissions('users:delete') // Chỉ Admin mới lấy được danh sách quyền hệ thống
+  @RequirePermissions('users:delete')
   @Get('permissions')
   async getPermissions() {
     return await firstValueFrom(this.identityClient.send('permissions.findAll', {}));
@@ -57,16 +76,42 @@ export class UsersController {
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return await firstValueFrom(this.identityClient.send('users.findOne', { id }));
+    try {
+      const res = await firstValueFrom(this.identityClient.send('users.findOne', { id }));
+      return res || { success: false, message: 'User not found' };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error fetching user profile' };
+    }
   }
 
-  @RequirePermissions('users:delete') // Chỉ Admin mới được cập nhật vai trò/thông tin user khác
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateData: UpdateUserDto) {
-    return await firstValueFrom(this.identityClient.send('users.update', { id, updateData }));
+  @UseInterceptors(FileInterceptor('avatar', {
+    storage: diskStorage({
+      destination: (req, file, cb) => {
+        const uploadDir = join(process.cwd(), 'public', 'uploads', 'avatars');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        cb(null, buildCleanFilename(file.originalname, 'avatar'));
+      }
+    })
+  }))
+  async update(
+    @Param('id') id: string,
+    @Body() updateData: any,
+    @UploadedFile() file?: Express.Multer.File
+  ) {
+    const payload = { ...updateData };
+    if (file) {
+      payload.avatarUrl = `/uploads/avatars/${file.filename}`;
+    }
+    return await firstValueFrom(this.identityClient.send('users.update', { id, updateData: payload }));
   }
 
-  @RequirePermissions('users:delete') // Chỉ User có quyền users:delete mới được xóa user
+  @RequirePermissions('users:delete')
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return await firstValueFrom(this.identityClient.send('users.remove', { id }));

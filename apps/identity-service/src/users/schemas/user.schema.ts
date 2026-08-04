@@ -35,6 +35,9 @@ export class User {
   @Prop()
   refreshToken: string;
 
+  @Prop()
+  avatarUrl: string;
+
   @Prop({ type: [String], default: null })
   permissions: string[];
 }

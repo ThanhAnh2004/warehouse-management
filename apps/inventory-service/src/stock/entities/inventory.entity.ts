@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique, ManyToOne, JoinColumn } from 'typeorm';
+import { Location } from './location.entity';
 
 @Entity('inventories')
 @Unique(['productId', 'location'])
@@ -9,8 +10,15 @@ export class Inventory {
   @Column()
   productId: string;
 
-  @Column({ default: 'DEFAULT_WAREHOUSE' })
+  @Column({ default: 'Z-STD-A01-R01-S1-A' })
   location: string;
+
+  @Column({ nullable: true })
+  locationId: string;
+
+  @ManyToOne(() => Location, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'locationId' })
+  locationDetails: Location;
 
   @Column({ type: 'int', default: 0 })
   currentQuantity: number;
