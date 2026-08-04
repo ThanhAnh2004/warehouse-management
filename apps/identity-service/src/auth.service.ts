@@ -118,10 +118,21 @@ export class AuthService {
     return { success: true, message: 'Logged out successfully' };
   }
 
-  verifyToken(data: { token: string }) {
+  async verifyToken(data: { token: string }) {
     try {
       // Xác thực tính hợp lệ của token
       const decoded = this.jwtService.verify(data.token);
+      
+      // Lấy thông tin permissions mới nhất từ DB để áp dụng ngay lập tức mà không cần đăng nhập lại
+      const user = await this.usersService.findOne(decoded.sub);
+      if (user) {
+        const latestPermissions = (user.permissions !== null && user.permissions !== undefined)
+          ? user.permissions
+          : await this.usersService.findPermissionsForRole(user.role);
+        decoded.permissions = latestPermissions;
+        decoded.role = user.role;
+      }
+      
       return { success: true, data: decoded };
     } catch (error) {
       return { success: false, message: 'Invalid or expired token' };

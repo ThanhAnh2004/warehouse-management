@@ -216,29 +216,29 @@ export class StockService implements OnModuleInit {
       zone: candidate ? candidate.zone : ZoneType.ACCESSORIES,
       zoneName: zoneLabel,
       reason: candidate 
-        ? `Đề xuất cất vào Kệ [${candidate.code}] thuộc Dãy ${candidate.aisle} (${zoneLabel}) vì còn trống ${candidate.maxCapacity - candidate.currentItemsCount} vị trí.`
-        : 'Sử dụng kệ phụ kiện mặc định C01 do các kệ chuyên dụng khác đã đầy.',
+        ? `Đề xuất cất vào Kệ ${candidate.aisle} - Tầng [${candidate.code}] (${zoneLabel}) vì còn trống ${candidate.maxCapacity - candidate.currentItemsCount} vị trí.`
+        : 'Sử dụng Tầng phụ kiện mặc định C01 do các tầng chuyên dụng khác đã đầy.',
     };
   }
 
-  // Chuyển vị trí tồn kho giữa 2 Kệ hàng (Stock Relocation)
+  // Chuyển vị trí tồn kho giữa 2 Tầng Kệ kho (Stock Relocation)
   async relocateStock(dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
     const { productId, fromLocation, toLocation, quantity } = dto;
     if (quantity <= 0) throw new RpcException('Quantity must be greater than 0');
 
     const sourceInv = await this.inventoryRepository.findOne({ where: { productId, location: fromLocation } });
     if (!sourceInv || sourceInv.currentQuantity < quantity) {
-      throw new RpcException(`Tồn kho tại kệ [${fromLocation}] không đủ ${quantity} sản phẩm để chuyển.`);
+      throw new RpcException(`Tồn kho tại Tầng [${fromLocation}] không đủ ${quantity} sản phẩm để chuyển.`);
     }
 
-    // Giảm kệ cũ
+    // Giảm tầng cũ
     await this.updateStock({ productId, quantityChange: -quantity, location: fromLocation });
-    // Tăng kệ mới
+    // Tăng tầng mới
     await this.updateStock({ productId, quantityChange: quantity, location: toLocation });
 
     return {
       success: true,
-      message: `Đã chuyển thành công ${quantity} sản phẩm từ kệ [${fromLocation}] sang kệ [${toLocation}].`,
+      message: `Đã chuyển thành công ${quantity} sản phẩm từ Tầng [${fromLocation}] sang Tầng [${toLocation}].`,
     };
   }
 

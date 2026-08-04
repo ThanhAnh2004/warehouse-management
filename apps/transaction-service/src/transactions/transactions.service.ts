@@ -143,9 +143,7 @@ export class TransactionsService implements OnModuleInit {
       throw new RpcException('quantity phải là số dương với INBOUND/OUTBOUND/TRANSFER');
     }
     if (type === TransactionType.INBOUND) {
-      if (!dto.locationTo) {
-        dto.locationTo = DEFAULT_WAREHOUSE;
-      }
+      dto.locationTo = DEFAULT_WAREHOUSE;
     }
     if (type === TransactionType.OUTBOUND && !locationFrom) {
       throw new RpcException('OUTBOUND yêu cầu Từ Kệ Kho (locationFrom)');
