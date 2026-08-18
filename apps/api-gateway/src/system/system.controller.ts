@@ -2,8 +2,8 @@ import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as net from 'net';
 import { AuthGuard } from '../auth/auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 interface ServiceCheck {
@@ -17,12 +17,12 @@ interface ServiceCheck {
 @ApiTags('System')
 @ApiBearerAuth('JWT-auth')
 @Controller('system')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, PermissionsGuard)
 export class SystemController {
   constructor(private readonly configService: ConfigService) {}
 
   @Get('health')
-  @Roles('Admin')
+  @RequirePermissions('system:read')
   async getSystemHealth() {
     const cfg = (key: string, fallback: string) => this.configService.get<string>(key, fallback);
     const transportMode = cfg('MICROSERVICE_TRANSPORT', 'tcp');
@@ -139,7 +139,7 @@ export class SystemController {
   }
 
   @Get('message-bus/status')
-  @Roles('Admin')
+  @RequirePermissions('system:read')
   async getMessageBusStatus() {
     const cfg = (key: string, fallback: string) => this.configService.get<string>(key, fallback);
     const rmqUrl = cfg('RABBITMQ_URL', 'amqp://guest:guest@warehouse_rabbitmq:5672');
@@ -231,7 +231,7 @@ export class SystemController {
   }
 
   @Post('message-bus/purge-queue')
-  @Roles('Admin')
+  @RequirePermissions('system:read')
   async purgeQueue(@Body('queueName') queueName: string) {
     if (!queueName) return { success: false, message: 'Queue name is required' };
     const rmqHost = this.configService.get<string>('RABBITMQ_HOST', 'warehouse_rabbitmq');
@@ -249,7 +249,7 @@ export class SystemController {
   }
 
   @Post('message-bus/requeue-dlq')
-  @Roles('Admin')
+  @RequirePermissions('system:read')
   async requeueDlq(@Body('dlqName') dlqName: string, @Body('targetQueue') targetQueue: string) {
     if (!dlqName || !targetQueue) return { success: false, message: 'dlqName and targetQueue are required' };
     const rmqHost = this.configService.get<string>('RABBITMQ_HOST', 'warehouse_rabbitmq');
