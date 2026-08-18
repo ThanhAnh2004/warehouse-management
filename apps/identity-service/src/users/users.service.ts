@@ -198,6 +198,16 @@ export class UsersService implements OnModuleInit {
       { $set: update },
       { new: true }
     ).exec();
+
+    // Khi Admin đổi quyền của Role, reset custom permissions override của các users thuộc role này
+    // để tất cả tài khoản gắn với vai trò đó tự động đồng bộ theo ma trận quyền mới nhất của Role!
+    if (updateData.permissions !== undefined) {
+      await this.userModel.updateMany(
+        { role: name },
+        { $unset: { permissions: "" } }
+      ).exec();
+    }
+
     return { success: !!updatedRole, data: updatedRole };
   }
 
@@ -281,6 +291,9 @@ export class UsersService implements OnModuleInit {
       const userObj: any = user.toObject ? user.toObject() : { ...user };
       delete userObj.password;
       userObj.id = userObj._id ? userObj._id.toString() : id;
+      userObj.permissions = (userObj.permissions !== null && userObj.permissions !== undefined)
+        ? userObj.permissions
+        : await this.findPermissionsForRole(userObj.role);
       return userObj;
     } catch (error: any) {
       console.error('findOne error in identity-service:', error?.message || error);
@@ -298,18 +311,37 @@ export class UsersService implements OnModuleInit {
     const { email: _, password: __, ...allowedUpdates } = updateData;
 
     try {
+      const setObj: any = {};
+      const unsetObj: any = {};
+
+      for (const [key, val] of Object.entries(allowedUpdates)) {
+        if (key === 'permissions') {
+          if (val === null || val === undefined) {
+            unsetObj.permissions = "";
+          } else {
+            setObj.permissions = val;
+          }
+        } else {
+          setObj[key] = val;
+        }
+      }
+
+      const mongoUpdate: any = {};
+      if (Object.keys(setObj).length > 0) mongoUpdate.$set = setObj;
+      if (Object.keys(unsetObj).length > 0) mongoUpdate.$unset = unsetObj;
+
       let updatedUser: any = null;
       if (Types.ObjectId.isValid(id)) {
         updatedUser = await this.userModel.findByIdAndUpdate(
           id,
-          { $set: allowedUpdates },
+          mongoUpdate,
           { new: true, runValidators: true }
         ).select('-password').exec().catch(() => null);
       }
       if (!updatedUser) {
         updatedUser = await this.userModel.findOneAndUpdate(
           { _id: id as any },
-          { $set: allowedUpdates },
+          mongoUpdate,
           { new: true }
         ).select('-password').exec().catch(() => null);
       }
@@ -320,6 +352,9 @@ export class UsersService implements OnModuleInit {
 
       const userObj: any = updatedUser.toObject ? updatedUser.toObject() : updatedUser;
       userObj.id = userObj._id ? userObj._id.toString() : id;
+      userObj.permissions = (userObj.permissions !== null && userObj.permissions !== undefined)
+        ? userObj.permissions
+        : await this.findPermissionsForRole(userObj.role);
       return { success: true, data: userObj };
     } catch (e: any) {
       return { success: false, message: e?.message || 'Update failed' };
