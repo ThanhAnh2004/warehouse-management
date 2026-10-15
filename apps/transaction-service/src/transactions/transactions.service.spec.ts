@@ -5,6 +5,9 @@ import { RpcException } from '@nestjs/microservices';
 import { TransactionsService } from './transactions.service';
 import { Transaction, TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { SagaInstance } from './entities/saga-instance.entity';
+import { TransactionSagaOrchestrator } from './saga/transaction-saga.orchestrator';
+import { KafkaProducerService } from './kafka/kafka-producer.service';
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
@@ -12,7 +15,17 @@ describe('TransactionsService', () => {
   let repository: {
     create: jest.Mock;
     save: jest.Mock;
+    findOne: jest.Mock;
     findAndCount: jest.Mock;
+  };
+  let sagaRepository: {
+    create: jest.Mock;
+    save: jest.Mock;
+    findOne: jest.Mock;
+    find: jest.Mock;
+  };
+  let kafkaProducer: {
+    emit: jest.Mock;
   };
 
   const buildDto = (overrides: Partial<CreateTransactionDto> = {}): CreateTransactionDto => ({
@@ -27,16 +40,30 @@ describe('TransactionsService', () => {
     repository = {
       // Trả về chính input để service.create() thấy transaction "vừa lưu" như mong đợi
       create: jest.fn((dto) => ({ ...dto })),
-      save: jest.fn((entity) => Promise.resolve({ id: 'tx-1', ...entity })),
+      save: jest.fn((entity) => {
+        Object.assign(entity, { id: entity.id || 'tx-1' });
+        return Promise.resolve(entity);
+      }),
+      findOne: jest.fn(),
       findAndCount: jest.fn(),
     };
+    sagaRepository = {
+      create: jest.fn((dto) => ({ ...dto, stepLogs: [] })),
+      save: jest.fn((entity) => Promise.resolve({ id: 'saga-1', ...entity })),
+      findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
+    };
     inventoryClient = { send: jest.fn() };
+    kafkaProducer = { emit: jest.fn().mockResolvedValue(true) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TransactionsService,
+        TransactionSagaOrchestrator,
         { provide: getRepositoryToken(Transaction), useValue: repository },
+        { provide: getRepositoryToken(SagaInstance), useValue: sagaRepository },
         { provide: 'INVENTORY_SERVICE', useValue: inventoryClient },
+        { provide: KafkaProducerService, useValue: kafkaProducer },
       ],
     }).compile();
 
