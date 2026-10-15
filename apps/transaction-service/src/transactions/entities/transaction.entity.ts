@@ -45,6 +45,9 @@ export class Transaction {
   status: TransactionStatus;
 
   @Column({ nullable: true })
+  sagaId: string;
+
+  @Column({ nullable: true })
   createdBy: string;
 
   @Column({ type: 'text', nullable: true })

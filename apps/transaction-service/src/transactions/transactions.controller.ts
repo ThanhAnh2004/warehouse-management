@@ -31,4 +31,17 @@ export class TransactionsController {
   findByProduct(@Payload() payload: { productId: string; page?: number; limit?: number }) {
     return this.transactionsService.findByProduct(payload.productId, payload?.page, payload?.limit);
   }
+
+  @MessagePattern('transaction.getSaga')
+  getSaga(@Payload() payload: { transactionId?: string; id?: string }) {
+    if (payload.id) {
+      return this.transactionsService.getSagaById(payload.id);
+    }
+    return this.transactionsService.getSagaByTransactionId(payload.transactionId || '');
+  }
+
+  @MessagePattern('transaction.getAllSagas')
+  getAllSagas(@Payload() payload: { page?: number; limit?: number; status?: string } = {}) {
+    return this.transactionsService.getAllSagas(payload);
+  }
 }
