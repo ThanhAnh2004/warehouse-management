@@ -195,6 +195,22 @@ export class InventoryController {
     return this.inventoryClient.send('inventory.get_reorder_info', productId);
   }
 
+  @Get('decision/:productId')
+  @RequirePermissions('stock:read')
+  getInventoryDecision(
+    @Param('productId') productId: string,
+    @Query('leadTimeDays') leadTimeDays?: number,
+    @Query('serviceLevel') serviceLevel?: number,
+    @Query('horizonDays') horizonDays?: number,
+  ) {
+    return this.inventoryClient.send('inventory.get_decision_support', {
+      productId,
+      leadTimeDays: leadTimeDays ? Number(leadTimeDays) : 7,
+      serviceLevel: serviceLevel ? Number(serviceLevel) : 0.95,
+      horizonDays: horizonDays ? Number(horizonDays) : 7,
+    });
+  }
+
   @Get('locations')
   @RequirePermissions('stock:read')
   getAllLocations() {

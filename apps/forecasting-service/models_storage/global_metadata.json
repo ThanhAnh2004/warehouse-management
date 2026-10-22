@@ -1,0 +1,564 @@
+{
+  "evaluation_metrics": {
+    "mae": 1.161,
+    "rmse": 1.573,
+    "wape": 0.3333,
+    "accuracy": 66.67
+  },
+  "feature_cols": [
+    "lag_1",
+    "lag_2",
+    "lag_3",
+    "lag_7",
+    "lag_14",
+    "lag_30",
+    "rolling_mean_7",
+    "rolling_std_7",
+    "rolling_mean_14",
+    "rolling_mean_30",
+    "day_of_week",
+    "is_weekend",
+    "day_of_month",
+    "month",
+    "is_holiday",
+    "product_mean_demand",
+    "product_std_demand",
+    "product_max_demand"
+  ],
+  "pid_to_code": {
+    "01111111-1111-1111-1111-111111111111": 0,
+    "02222222-2222-2222-2222-222222222222": 1,
+    "022655d6-ca42-4a3c-91fa-530226870341": 2,
+    "03333333-3333-3333-3333-333333333333": 3,
+    "04444444-4444-4444-4444-444444444444": 4,
+    "04c28664-2f7e-44f1-b4c8-d6202bc41314": 5,
+    "05555555-5555-5555-5555-555555555555": 6,
+    "06106432-ac24-40a0-beec-21042ac7561f": 7,
+    "06344f7e-adad-4c9f-b4b9-4efd7f386da2": 8,
+    "06666666-6666-6666-6666-666666666666": 9,
+    "07777777-7777-7777-7777-777777777777": 10,
+    "08888888-8888-8888-8888-888888888888": 11,
+    "08f0a72e-627b-49f2-a9de-61e9eda1412f": 12,
+    "09999999-9999-9999-9999-999999999999": 13,
+    "10101010-1010-1010-1010-101010101010": 14,
+    "11111111-1112-1111-1111-111111111111": 15,
+    "12121212-1212-1212-1212-121212121212": 16,
+    "13131313-1313-1313-1313-131313131313": 17,
+    "138c820b-54f6-41a6-bebf-6b8908cf036f": 18,
+    "14141414-1414-1414-1414-141414141414": 19,
+    "15151515-1515-1515-1515-151515151515": 20,
+    "16161616-1616-1616-1616-161616161616": 21,
+    "17171717-1717-1717-1717-171717171717": 22,
+    "18181818-1818-1818-1818-181818181818": 23,
+    "19191919-1919-1919-1919-191919191919": 24,
+    "1ad01023-a723-4051-b723-b5b1ce733607": 25,
+    "1bd40311-e829-4f58-a196-9100a4a95211": 26,
+    "20202020-2020-2020-2020-202020202020": 27,
+    "21212121-2121-2121-2121-212121212121": 28,
+    "22222222-2223-2222-2222-222222222222": 29,
+    "23232323-2323-2323-2323-232323232323": 30,
+    "24242424-2424-2424-2424-242424242424": 31,
+    "242f0418-d713-4818-bfe4-aee3cf1efaf4": 32,
+    "25252525-2525-2525-2525-252525252525": 33,
+    "26262626-2626-2626-2626-262626262626": 34,
+    "27272727-2727-2727-2727-272727272727": 35,
+    "28282828-2828-2828-2828-282828282828": 36,
+    "29292929-2929-2929-2929-292929292929": 37,
+    "2dddf216-abeb-449f-81e1-fc6ee316f856": 38,
+    "30303030-3030-3030-3030-303030303030": 39,
+    "37a0d9b6-e6d0-4c57-89b9-a7727cdf75ea": 40,
+    "3d394e82-5e08-4981-8f70-c66bdd5a0e7c": 41,
+    "4650a484-1306-4310-a325-31809f112f5b": 42,
+    "49154591-7fab-4183-9d44-53d6ef62bb0e": 43,
+    "4d89d3ec-da5c-4679-a129-f49f8b1b1c24": 44,
+    "4f04c363-e945-4b3b-9d3f-8b8462ff654a": 45,
+    "523ffa0e-6249-4a80-9537-ed4677f7cf9d": 46,
+    "5a5c916f-3877-47c3-8e88-e5c1c34cbc1f": 47,
+    "60fc5a30-a24a-43b5-8985-e389c2dc6dd7": 48,
+    "62f9c2d9-9eeb-4098-a080-b8b61890d855": 49,
+    "6756802d-f100-40d2-850d-984869fb846e": 50,
+    "6bd835ac-1820-418f-b305-ae393cf159bd": 51,
+    "6fdd1f84-b4c2-49a7-b5d7-5108eddcd484": 52,
+    "71d5ba16-ed78-45c5-9ef2-0704a4b3224a": 53,
+    "805121c6-0079-47ed-a04c-875d9984aaff": 54,
+    "80a17e0d-10aa-4999-a03b-7f6d86ab549c": 55,
+    "8254cb66-81b2-4677-86aa-4eeaaac856ca": 56,
+    "862b229b-ecb8-4616-856b-d7abd04eeb20": 57,
+    "88de1da6-65d8-4b2a-9f3f-c6359dba66c2": 58,
+    "8fef8d9f-24f4-4d87-a7ef-abebd73f99a0": 59,
+    "947378a7-9730-4df3-a27a-7ef79c037999": 60,
+    "a3135059-4d81-4036-8be9-ea24e0540025": 61,
+    "ad4fa7e4-7f9d-4313-b9e6-49d3a32d5d61": 62,
+    "adbc23e1-201e-4464-82f1-18a7a14f21b3": 63,
+    "b20a2ae0-f6ea-4dc0-8c8b-382b06515299": 64,
+    "b3c8a1b6-413d-40e6-b3f8-06f8c2b7c81a": 65,
+    "b9211aea-b100-40ff-aa4e-09266c01fcac": 66,
+    "b94577dc-467b-40b0-933e-1216aaa58bfa": 67,
+    "bbc36913-f686-4af0-a172-a1d354e4e776": 68,
+    "d0785269-776d-4660-8d38-01262dc875be": 69,
+    "e062cc17-5272-4682-866f-bbc67aa8d06b": 70,
+    "ebafde27-a493-49b8-b6e9-15fce8a90d8f": 71,
+    "f5d2be74-49ff-4b6d-8d3d-6a1c5051604e": 72,
+    "f8916439-aca0-45df-a7c9-6cecca798fa9": 73,
+    "fe1bea41-cc36-4e96-a6d1-9fae1e219040": 74,
+    "ffc548ec-a50a-41fb-adc3-a348598bf749": 75
+  },
+  "product_stats": {
+    "01111111-1111-1111-1111-111111111111": {
+      "product_mean_demand": 4.337016574585635,
+      "product_std_demand": 3.768466127687283,
+      "product_max_demand": 13.0,
+      "product_record_count": 181
+    },
+    "02222222-2222-2222-2222-222222222222": {
+      "product_mean_demand": 4.351519337016574,
+      "product_std_demand": 3.8460939913056693,
+      "product_max_demand": 14.875,
+      "product_record_count": 181
+    },
+    "022655d6-ca42-4a3c-91fa-530226870341": {
+      "product_mean_demand": 1.7286821705426356,
+      "product_std_demand": 2.006778968700089,
+      "product_max_demand": 7.0,
+      "product_record_count": 129
+    },
+    "03333333-3333-3333-3333-333333333333": {
+      "product_mean_demand": 3.9972222222222222,
+      "product_std_demand": 4.03405545265081,
+      "product_max_demand": 14.5,
+      "product_record_count": 180
+    },
+    "04444444-4444-4444-4444-444444444444": {
+      "product_mean_demand": 3.8583333333333334,
+      "product_std_demand": 3.8730819625834005,
+      "product_max_demand": 14.5,
+      "product_record_count": 180
+    },
+    "04c28664-2f7e-44f1-b4c8-d6202bc41314": {
+      "product_mean_demand": 1.7153846153846153,
+      "product_std_demand": 1.965997947352459,
+      "product_max_demand": 7.0,
+      "product_record_count": 130
+    },
+    "05555555-5555-5555-5555-555555555555": {
+      "product_mean_demand": 4.5911602209944755,
+      "product_std_demand": 3.8728020723316474,
+      "product_max_demand": 13.5,
+      "product_record_count": 181
+    },
+    "06106432-ac24-40a0-beec-21042ac7561f": {
+      "product_mean_demand": 2.876923076923077,
+      "product_std_demand": 2.529868906957539,
+      "product_max_demand": 8.0,
+      "product_record_count": 130
+    },
+    "06344f7e-adad-4c9f-b4b9-4efd7f386da2": {
+      "product_mean_demand": 4.730769230769231,
+      "product_std_demand": 4.251313754482637,
+      "product_max_demand": 15.0,
+      "product_record_count": 130
+    },
+    "06666666-6666-6666-6666-666666666666": {
+      "product_mean_demand": 5.494475138121547,
+      "product_std_demand": 3.382596403087053,
+      "product_max_demand": 15.0,
+      "product_record_count": 181
+    },
+    "07777777-7777-7777-7777-777777777777": {
+      "product_mean_demand": 3.7444444444444445,
+      "product_std_demand": 3.8396646587114907,
+      "product_max_demand": 14.5,
+      "product_record_count": 180
+    },
+    "08888888-8888-8888-8888-888888888888": {
+      "product_mean_demand": 4.088888888888889,
+      "product_std_demand": 4.122147348825863,
+      "product_max_demand": 17.0,
+      "product_record_count": 180
+    },
+    "08f0a72e-627b-49f2-a9de-61e9eda1412f": {
+      "product_mean_demand": 1.4076923076923078,
+      "product_std_demand": 1.5966125383552316,
+      "product_max_demand": 5.0,
+      "product_record_count": 130
+    },
+    "09999999-9999-9999-9999-999999999999": {
+      "product_mean_demand": 5.555555555555555,
+      "product_std_demand": 3.559372950741343,
+      "product_max_demand": 19.0,
+      "product_record_count": 180
+    },
+    "10101010-1010-1010-1010-101010101010": {
+      "product_mean_demand": 4.513812154696133,
+      "product_std_demand": 3.93259187275292,
+      "product_max_demand": 16.0,
+      "product_record_count": 181
+    },
+    "11111111-1112-1111-1111-111111111111": {
+      "product_mean_demand": 6.662983425414365,
+      "product_std_demand": 3.998923880764071,
+      "product_max_demand": 17.0,
+      "product_record_count": 181
+    },
+    "12121212-1212-1212-1212-121212121212": {
+      "product_mean_demand": 6.696132596685083,
+      "product_std_demand": 3.7727485275368378,
+      "product_max_demand": 18.0,
+      "product_record_count": 181
+    },
+    "13131313-1313-1313-1313-131313131313": {
+      "product_mean_demand": 4.2707182320441985,
+      "product_std_demand": 3.7043611796551508,
+      "product_max_demand": 13.0,
+      "product_record_count": 181
+    },
+    "138c820b-54f6-41a6-bebf-6b8908cf036f": {
+      "product_mean_demand": 2.978846153846154,
+      "product_std_demand": 2.5570480680826493,
+      "product_max_demand": 9.25,
+      "product_record_count": 130
+    },
+    "14141414-1414-1414-1414-141414141414": {
+      "product_mean_demand": 5.397790055248619,
+      "product_std_demand": 3.2432327471299063,
+      "product_max_demand": 15.0,
+      "product_record_count": 181
+    },
+    "15151515-1515-1515-1515-151515151515": {
+      "product_mean_demand": 6.433701657458563,
+      "product_std_demand": 3.671756034253927,
+      "product_max_demand": 14.0,
+      "product_record_count": 181
+    },
+    "16161616-1616-1616-1616-161616161616": {
+      "product_mean_demand": 5.37292817679558,
+      "product_std_demand": 3.3527240908096765,
+      "product_max_demand": 15.5,
+      "product_record_count": 181
+    },
+    "17171717-1717-1717-1717-171717171717": {
+      "product_mean_demand": 5.541436464088398,
+      "product_std_demand": 3.382551283453025,
+      "product_max_demand": 13.0,
+      "product_record_count": 181
+    },
+    "18181818-1818-1818-1818-181818181818": {
+      "product_mean_demand": 3.7472222222222222,
+      "product_std_demand": 3.732923051198999,
+      "product_max_demand": 14.5,
+      "product_record_count": 180
+    },
+    "19191919-1919-1919-1919-191919191919": {
+      "product_mean_demand": 4.403314917127072,
+      "product_std_demand": 3.8975541353320255,
+      "product_max_demand": 16.0,
+      "product_record_count": 181
+    },
+    "1ad01023-a723-4051-b723-b5b1ce733607": {
+      "product_mean_demand": 0.7441860465116279,
+      "product_std_demand": 1.0213159907607412,
+      "product_max_demand": 3.0,
+      "product_record_count": 129
+    },
+    "1bd40311-e829-4f58-a196-9100a4a95211": {
+      "product_mean_demand": 1.6564885496183206,
+      "product_std_demand": 1.9052798971568745,
+      "product_max_demand": 6.0,
+      "product_record_count": 131
+    },
+    "20202020-2020-2020-2020-202020202020": {
+      "product_mean_demand": 7.188235294117647,
+      "product_std_demand": 2.809622615006209,
+      "product_max_demand": 15.0,
+      "product_record_count": 85
+    },
+    "21212121-2121-2121-2121-212121212121": {
+      "product_mean_demand": 6.497237569060774,
+      "product_std_demand": 3.736669580160353,
+      "product_max_demand": 16.0,
+      "product_record_count": 181
+    },
+    "22222222-2223-2222-2222-222222222222": {
+      "product_mean_demand": 7.141176470588236,
+      "product_std_demand": 2.617376059997181,
+      "product_max_demand": 15.0,
+      "product_record_count": 85
+    },
+    "23232323-2323-2323-2323-232323232323": {
+      "product_mean_demand": 6.541436464088398,
+      "product_std_demand": 3.535877071654597,
+      "product_max_demand": 14.0,
+      "product_record_count": 181
+    },
+    "24242424-2424-2424-2424-242424242424": {
+      "product_mean_demand": 7.176470588235294,
+      "product_std_demand": 2.415277212628155,
+      "product_max_demand": 12.5,
+      "product_record_count": 85
+    },
+    "242f0418-d713-4818-bfe4-aee3cf1efaf4": {
+      "product_mean_demand": 0.77734375,
+      "product_std_demand": 1.0491972261381257,
+      "product_max_demand": 3.5,
+      "product_record_count": 128
+    },
+    "25252525-2525-2525-2525-252525252525": {
+      "product_mean_demand": 6.5777777777777775,
+      "product_std_demand": 3.910037731496769,
+      "product_max_demand": 17.0,
+      "product_record_count": 180
+    },
+    "26262626-2626-2626-2626-262626262626": {
+      "product_mean_demand": 5.734806629834254,
+      "product_std_demand": 4.2015984318468,
+      "product_max_demand": 37.0,
+      "product_record_count": 181
+    },
+    "27272727-2727-2727-2727-272727272727": {
+      "product_mean_demand": 5.422651933701657,
+      "product_std_demand": 3.494998104688761,
+      "product_max_demand": 16.0,
+      "product_record_count": 181
+    },
+    "28282828-2828-2828-2828-282828282828": {
+      "product_mean_demand": 5.461325966850829,
+      "product_std_demand": 3.4410820617393107,
+      "product_max_demand": 16.0,
+      "product_record_count": 181
+    },
+    "29292929-2929-2929-2929-292929292929": {
+      "product_mean_demand": 6.8882352941176475,
+      "product_std_demand": 2.496322554794924,
+      "product_max_demand": 12.5,
+      "product_record_count": 85
+    },
+    "2dddf216-abeb-449f-81e1-fc6ee316f856": {
+      "product_mean_demand": 1.744186046511628,
+      "product_std_demand": 2.0088141813017697,
+      "product_max_demand": 7.0,
+      "product_record_count": 129
+    },
+    "30303030-3030-3030-3030-303030303030": {
+      "product_mean_demand": 6.5777777777777775,
+      "product_std_demand": 3.5090447506021345,
+      "product_max_demand": 15.0,
+      "product_record_count": 180
+    },
+    "37a0d9b6-e6d0-4c57-89b9-a7727cdf75ea": {
+      "product_mean_demand": 0.8203125,
+      "product_std_demand": 1.092828853180474,
+      "product_max_demand": 4.0,
+      "product_record_count": 128
+    },
+    "3d394e82-5e08-4981-8f70-c66bdd5a0e7c": {
+      "product_mean_demand": 1.523076923076923,
+      "product_std_demand": 1.7897803243603545,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "4650a484-1306-4310-a325-31809f112f5b": {
+      "product_mean_demand": 1.3692307692307693,
+      "product_std_demand": 1.536171372343301,
+      "product_max_demand": 4.5,
+      "product_record_count": 130
+    },
+    "49154591-7fab-4183-9d44-53d6ef62bb0e": {
+      "product_mean_demand": 4.3307692307692305,
+      "product_std_demand": 4.246968985303539,
+      "product_max_demand": 26.0,
+      "product_record_count": 130
+    },
+    "4d89d3ec-da5c-4679-a129-f49f8b1b1c24": {
+      "product_mean_demand": 1.5813953488372092,
+      "product_std_demand": 1.8287017228039455,
+      "product_max_demand": 6.0,
+      "product_record_count": 129
+    },
+    "4f04c363-e945-4b3b-9d3f-8b8462ff654a": {
+      "product_mean_demand": 1.6153846153846154,
+      "product_std_demand": 1.8662369186912982,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "523ffa0e-6249-4a80-9537-ed4677f7cf9d": {
+      "product_mean_demand": 1.4384615384615385,
+      "product_std_demand": 1.7231627725866185,
+      "product_max_demand": 7.0,
+      "product_record_count": 130
+    },
+    "5a5c916f-3877-47c3-8e88-e5c1c34cbc1f": {
+      "product_mean_demand": 1.5538461538461539,
+      "product_std_demand": 1.8147326078157693,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "60fc5a30-a24a-43b5-8985-e389c2dc6dd7": {
+      "product_mean_demand": 1.6153846153846154,
+      "product_std_demand": 1.8948700600248816,
+      "product_max_demand": 7.0,
+      "product_record_count": 130
+    },
+    "62f9c2d9-9eeb-4098-a080-b8b61890d855": {
+      "product_mean_demand": 1.5538461538461539,
+      "product_std_demand": 1.8231905190185291,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "6756802d-f100-40d2-850d-984869fb846e": {
+      "product_mean_demand": 2.86046511627907,
+      "product_std_demand": 2.3517902995641875,
+      "product_max_demand": 8.0,
+      "product_record_count": 129
+    },
+    "6bd835ac-1820-418f-b305-ae393cf159bd": {
+      "product_mean_demand": 1.4692307692307693,
+      "product_std_demand": 1.7982404286004845,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "6fdd1f84-b4c2-49a7-b5d7-5108eddcd484": {
+      "product_mean_demand": 4.365384615384615,
+      "product_std_demand": 3.8197555608152074,
+      "product_max_demand": 13.25,
+      "product_record_count": 130
+    },
+    "71d5ba16-ed78-45c5-9ef2-0704a4b3224a": {
+      "product_mean_demand": 0.75390625,
+      "product_std_demand": 1.0326620895583112,
+      "product_max_demand": 3.5,
+      "product_record_count": 128
+    },
+    "805121c6-0079-47ed-a04c-875d9984aaff": {
+      "product_mean_demand": 1.689922480620155,
+      "product_std_demand": 1.928161149994298,
+      "product_max_demand": 6.0,
+      "product_record_count": 129
+    },
+    "80a17e0d-10aa-4999-a03b-7f6d86ab549c": {
+      "product_mean_demand": 0.7286821705426356,
+      "product_std_demand": 0.9941841576360558,
+      "product_max_demand": 3.0,
+      "product_record_count": 129
+    },
+    "8254cb66-81b2-4677-86aa-4eeaaac856ca": {
+      "product_mean_demand": 4.584615384615384,
+      "product_std_demand": 4.267560310753343,
+      "product_max_demand": 24.0,
+      "product_record_count": 130
+    },
+    "862b229b-ecb8-4616-856b-d7abd04eeb20": {
+      "product_mean_demand": 1.646153846153846,
+      "product_std_demand": 1.9723532936045967,
+      "product_max_demand": 7.0,
+      "product_record_count": 130
+    },
+    "88de1da6-65d8-4b2a-9f3f-c6359dba66c2": {
+      "product_mean_demand": 0.7615384615384615,
+      "product_std_demand": 1.0510349928584766,
+      "product_max_demand": 3.0,
+      "product_record_count": 130
+    },
+    "8fef8d9f-24f4-4d87-a7ef-abebd73f99a0": {
+      "product_mean_demand": 1.6589147286821706,
+      "product_std_demand": 1.970700595648675,
+      "product_max_demand": 7.0,
+      "product_record_count": 129
+    },
+    "947378a7-9730-4df3-a27a-7ef79c037999": {
+      "product_mean_demand": 1.6692307692307693,
+      "product_std_demand": 1.9976465443056566,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "a3135059-4d81-4036-8be9-ea24e0540025": {
+      "product_mean_demand": 3.0310077519379846,
+      "product_std_demand": 2.536364927697025,
+      "product_max_demand": 10.0,
+      "product_record_count": 129
+    },
+    "ad4fa7e4-7f9d-4313-b9e6-49d3a32d5d61": {
+      "product_mean_demand": 0.7265625,
+      "product_std_demand": 1.0055692087538033,
+      "product_max_demand": 3.0,
+      "product_record_count": 128
+    },
+    "adbc23e1-201e-4464-82f1-18a7a14f21b3": {
+      "product_mean_demand": 1.5538461538461539,
+      "product_std_demand": 1.8316093741320183,
+      "product_max_demand": 6.0,
+      "product_record_count": 130
+    },
+    "b20a2ae0-f6ea-4dc0-8c8b-382b06515299": {
+      "product_mean_demand": 0.765625,
+      "product_std_demand": 1.0268609250404848,
+      "product_max_demand": 3.0,
+      "product_record_count": 128
+    },
+    "b3c8a1b6-413d-40e6-b3f8-06f8c2b7c81a": {
+      "product_mean_demand": 0.7265625,
+      "product_std_demand": 0.965942251686792,
+      "product_max_demand": 3.0,
+      "product_record_count": 128
+    },
+    "b9211aea-b100-40ff-aa4e-09266c01fcac": {
+      "product_mean_demand": 1.68503937007874,
+      "product_std_demand": 1.9306919627799022,
+      "product_max_demand": 6.0,
+      "product_record_count": 127
+    },
+    "b94577dc-467b-40b0-933e-1216aaa58bfa": {
+      "product_mean_demand": 4.666666666666667,
+      "product_std_demand": 4.44838326755805,
+      "product_max_demand": 19.0,
+      "product_record_count": 129
+    },
+    "bbc36913-f686-4af0-a172-a1d354e4e776": {
+      "product_mean_demand": 1.4461538461538461,
+      "product_std_demand": 1.7234202954569435,
+      "product_max_demand": 7.0,
+      "product_record_count": 130
+    },
+    "d0785269-776d-4660-8d38-01262dc875be": {
+      "product_mean_demand": 0.7015503875968992,
+      "product_std_demand": 0.963519428616546,
+      "product_max_demand": 3.5,
+      "product_record_count": 129
+    },
+    "e062cc17-5272-4682-866f-bbc67aa8d06b": {
+      "product_mean_demand": 0.75,
+      "product_std_demand": 1.0,
+      "product_max_demand": 3.0,
+      "product_record_count": 128
+    },
+    "ebafde27-a493-49b8-b6e9-15fce8a90d8f": {
+      "product_mean_demand": 0.7170542635658915,
+      "product_std_demand": 0.9996994921349341,
+      "product_max_demand": 3.5,
+      "product_record_count": 129
+    },
+    "f5d2be74-49ff-4b6d-8d3d-6a1c5051604e": {
+      "product_mean_demand": 3.1531007751937983,
+      "product_std_demand": 2.541956091829695,
+      "product_max_demand": 9.75,
+      "product_record_count": 129
+    },
+    "f8916439-aca0-45df-a7c9-6cecca798fa9": {
+      "product_mean_demand": 3.0692307692307694,
+      "product_std_demand": 2.672332491802912,
+      "product_max_demand": 10.0,
+      "product_record_count": 130
+    },
+    "fe1bea41-cc36-4e96-a6d1-9fae1e219040": {
+      "product_mean_demand": 2.830769230769231,
+      "product_std_demand": 2.373373002350036,
+      "product_max_demand": 8.0,
+      "product_record_count": 130
+    },
+    "ffc548ec-a50a-41fb-adc3-a348598bf749": {
+      "product_mean_demand": 1.5846153846153845,
+      "product_std_demand": 1.948508760702026,
+      "product_max_demand": 7.0,
+      "product_record_count": 130
+    }
+  }
+}
