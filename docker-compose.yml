@@ -16,6 +16,30 @@ services:
     networks:
       - wms_network
 
+  # Apache Kafka Event Streaming Broker (KRaft mode - No ZooKeeper needed)
+  kafka:
+    image: apache/kafka:latest
+    container_name: warehouse_kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,PLAINTEXT_INTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://warehouse_kafka:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - wms_network
+
   # NestJS Services
   api-gateway:
     build:
@@ -128,6 +152,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env.docker
+    volumes:
+      - ./apps/data-processing-service:/app
     networks:
       - wms_network
 
@@ -143,6 +169,8 @@ services:
     depends_on:
       - data-processing-service
     env_file: .env.docker
+    volumes:
+      - ./apps/forecasting-service:/app
     networks:
       - wms_network
 
@@ -181,3 +209,4 @@ networks:
 
 volumes:
   rabbitmq_data:
+  kafka_data:

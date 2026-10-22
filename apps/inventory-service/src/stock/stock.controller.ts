@@ -22,6 +22,11 @@ export class StockController {
     return this.stockService.getReorderInfo(productId);
   }
 
+  @MessagePattern('inventory.get_decision_support')
+  getInventoryDecisionSupport(@Payload() data: { productId: string; leadTimeDays?: number; serviceLevel?: number; horizonDays?: number }) {
+    return this.stockService.getInventoryDecision(data.productId, data);
+  }
+
   @MessagePattern('location.find_all')
   getAllLocations() {
     return this.stockService.getAllLocationsWithOccupancy();

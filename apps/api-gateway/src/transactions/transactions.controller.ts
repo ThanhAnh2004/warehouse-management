@@ -99,4 +99,27 @@ export class TransactionsController {
       endDate,
     });
   }
+
+  @Get('sagas')
+  @RequirePermissions('transactions:read')
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  getAllSagas(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+    @Query('status') status: string = '',
+  ) {
+    return this.transactionClient.send('transaction.getAllSagas', {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      status,
+    });
+  }
+
+  @Get(':id/saga')
+  @RequirePermissions('transactions:read')
+  getTransactionSaga(@Param('id') id: string) {
+    return this.transactionClient.send('transaction.getSaga', { transactionId: id });
+  }
 }

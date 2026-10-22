@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 import psycopg2
@@ -7,8 +8,12 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 
-# Load biến môi trường từ thư mục gốc (giống cách Forecasting Service đang làm)
-load_dotenv(dotenv_path='../../.env')
+# Load biến môi trường từ file .env của warehouse-system
+env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+else:
+    load_dotenv(dotenv_path='../../.env')
 
 app = FastAPI(title="Data Processing Service", version="1.0")
 
@@ -28,9 +33,9 @@ def get_db_connection():
         return psycopg2.connect(
             host=os.getenv('POSTGRES_HOST', 'localhost'),
             port=os.getenv('POSTGRES_PORT', '5432'),
-            user=os.getenv('POSTGRES_USER', 'admin'),
-            password=os.getenv('POSTGRES_PASSWORD', 'admin123'),
-            database=os.getenv('POSTGRES_DB_TRANSACTION', 'warehouse_transactions'),
+            user=os.getenv('POSTGRES_USER', 'postgres'),
+            password=os.getenv('POSTGRES_PASSWORD', '818757'),
+            database=os.getenv('POSTGRES_DB_TRANSACTION', 'warehouse_transaction'),
         )
     except Exception as e:
         print(f"Error connecting to database: {e}")
@@ -94,7 +99,7 @@ def normalize_daily_series(df: pd.DataFrame) -> pd.DataFrame:
     Bước 3 - Chuẩn hóa dữ liệu (data normalization):
     - Gom nhóm số lượng xuất kho theo ngày.
     - Lấp đầy các ngày không có giao dịch bằng 0 để chuỗi thời gian liên tục
-      (mô hình dự báo cần dữ liệu liên tục, không có "lỗ hổng" ngày).
+       (mô hình dự báo cần dữ liệu liên tục, không có "lỗ hổng" ngày).
     - Sinh feature day_index (số ngày kể từ ngày đầu tiên) phục vụ huấn luyện mô hình.
     """
     df = df.copy()
@@ -172,9 +177,8 @@ def quality_overview(lookback_days: int = 180):
 @app.get("/process/{product_id}")
 def process_product_data(product_id: str, lookback_days: int = 180):
     """
-    Endpoint chính: thu thập dữ liệu xuất kho thô của 1 sản phẩm, làm sạch & chuẩn hóa,
-    trả về chuỗi thời gian "sạch" sẵn sàng cho Forecasting Service sử dụng để huấn luyện
-    mô hình dự báo nhu cầu.
+    Endpoint thu thập dữ liệu xuất kho thô của 1 sản phẩm, làm sạch & chuẩn hóa,
+    trả về chuỗi thời gian "sạch" sẵn sàng cho Forecasting Service.
     """
     conn = get_db_connection()
     if not conn:
@@ -219,6 +223,64 @@ def process_product_data(product_id: str, lookback_days: int = 180):
             "series": series,
             "stats": stats,
             "dateRange": {"start": series[0]['date'], "end": series[-1]['date']} if series else None,
+            "processedAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/process-all")
+def process_all_products(lookback_days: int = 180):
+    """
+    Thu thập, làm sạch và chuẩn hóa chuỗi dữ liệu xuất kho cho TẤT CẢ các sản phẩm trong kho.
+    Trả về danh sách tất cả các sản phẩm để Global Forecasting Model có thể nạp
+    và huấn luyện trong 1 lượt (Single Global Training Pipeline).
+    """
+    conn = get_db_connection()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Data Processing Service: Database connection failed")
+
+    try:
+        query = """
+            SELECT id, "productId", "createdAt", quantity, status
+            FROM "transactions"
+            WHERE "type" = 'OUTBOUND'
+              AND "createdAt" >= NOW() - make_interval(days => %s)
+            ORDER BY "createdAt" ASC
+        """
+        raw_df = pd.read_sql_query(query, conn, params=(int(lookback_days),))
+        if raw_df.empty:
+            return {
+                "totalProducts": 0,
+                "products": {},
+                "processedAt": datetime.now(timezone.utc).isoformat(),
+            }
+
+        products_map = {}
+        for product_id, group in raw_df.groupby("productId"):
+            cleaned_df, _ = clean_data(group)
+            if cleaned_df.empty:
+                continue
+            daily_df = normalize_daily_series(cleaned_df)
+            series = [
+                {
+                    "date": row['date'].strftime('%Y-%m-%d'),
+                    "quantity": float(row['quantity']),
+                    "dayIndex": int(row['day_index']),
+                }
+                for _, row in daily_df.iterrows()
+            ]
+            if series:
+                products_map[str(product_id)] = series
+
+        return {
+            "totalProducts": len(products_map),
+            "products": products_map,
             "processedAt": datetime.now(timezone.utc).isoformat(),
         }
 

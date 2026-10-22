@@ -5,10 +5,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TransactionsService } from './transactions.service';
 import { TransactionsController } from './transactions.controller';
 import { Transaction } from './entities/transaction.entity';
+import { SagaInstance } from './entities/saga-instance.entity';
+import { TransactionSagaOrchestrator } from './saga/transaction-saga.orchestrator';
+import { KafkaProducerService } from './kafka/kafka-producer.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transaction]),
+    TypeOrmModule.forFeature([Transaction, SagaInstance]),
     ClientsModule.registerAsync([
       {
         name: 'INVENTORY_SERVICE',
@@ -38,6 +41,7 @@ import { Transaction } from './entities/transaction.entity';
     ]),
   ],
   controllers: [TransactionsController],
-  providers: [TransactionsService],
+  providers: [TransactionsService, TransactionSagaOrchestrator, KafkaProducerService],
+  exports: [TransactionsService, TransactionSagaOrchestrator, KafkaProducerService],
 })
 export class TransactionsModule {}

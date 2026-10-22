@@ -5,6 +5,7 @@ import { Transaction, TransactionStatus, TransactionType } from './entities/tran
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { TransactionSagaOrchestrator } from './saga/transaction-saga.orchestrator';
 
 const DEFAULT_WAREHOUSE = 'DEFAULT_WAREHOUSE';
 
@@ -16,6 +17,7 @@ export class TransactionsService implements OnModuleInit {
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
+    private readonly sagaOrchestrator: TransactionSagaOrchestrator,
   ) {}
 
   async onModuleInit() {
@@ -103,7 +105,7 @@ export class TransactionsService implements OnModuleInit {
   async create(createTransactionDto: CreateTransactionDto): Promise<Transaction> {
     this.validateBusinessRules(createTransactionDto);
 
-    // 1. Ghi nhận giao dịch với trạng thái PENDING
+    // 1. Ghi nhận giao dịch ban đầu với trạng thái PENDING
     const transaction = this.transactionRepository.create({
       ...createTransactionDto,
       status: TransactionStatus.PENDING,
@@ -111,19 +113,20 @@ export class TransactionsService implements OnModuleInit {
 
     const savedTransaction = await this.transactionRepository.save(transaction);
 
-    // 2. Áp dụng thay đổi tồn kho tương ứng sang Inventory Service
-    try {
-      await this.applyToInventory(savedTransaction);
-      savedTransaction.status = TransactionStatus.COMPLETED;
-    } catch (error: any) {
-      // 3. Nếu có lỗi từ Inventory (ví dụ: kho không đủ), đánh dấu FAILED
-      savedTransaction.status = TransactionStatus.FAILED;
-      const errorMessage = error?.message || JSON.stringify(error);
-      savedTransaction.note = `${savedTransaction.note || ''} | Error: ${errorMessage}`.trim();
-    }
+    // 2. Chuyển quyền điều phối giao dịch phân tán sang Saga Orchestrator
+    return this.sagaOrchestrator.executeTransactionSaga(savedTransaction);
+  }
 
-    // Cập nhật lại trạng thái cuối cùng
-    return this.transactionRepository.save(savedTransaction);
+  async getSagaByTransactionId(transactionId: string) {
+    return this.sagaOrchestrator.getSagaByTransactionId(transactionId);
+  }
+
+  async getSagaById(id: string) {
+    return this.sagaOrchestrator.getSagaById(id);
+  }
+
+  async getAllSagas(payload: { page?: number; limit?: number; status?: string } = {}) {
+    return this.sagaOrchestrator.getAllSagas(payload.page, payload.limit, payload.status);
   }
 
   private validateBusinessRules(dto: CreateTransactionDto) {
@@ -142,7 +145,7 @@ export class TransactionsService implements OnModuleInit {
     if (!quantity || quantity <= 0) {
       throw new RpcException('quantity phải là số dương với INBOUND/OUTBOUND/TRANSFER');
     }
-    if (type === TransactionType.INBOUND) {
+    if (type === TransactionType.INBOUND && !dto.locationTo) {
       dto.locationTo = DEFAULT_WAREHOUSE;
     }
     if (type === TransactionType.OUTBOUND && !locationFrom) {
@@ -159,59 +162,24 @@ export class TransactionsService implements OnModuleInit {
     );
   }
 
-  private async applyToInventory(tx: Transaction): Promise<void> {
-    switch (tx.type) {
-      case TransactionType.INBOUND:
-        await this.updateInventory(tx.productId, tx.quantity, tx.locationTo || DEFAULT_WAREHOUSE);
-        break;
-
-      case TransactionType.OUTBOUND:
-        await this.updateInventory(tx.productId, -tx.quantity, tx.locationFrom || DEFAULT_WAREHOUSE);
-        break;
-
-      case TransactionType.ADJUSTMENT:
-        await this.updateInventory(tx.productId, tx.quantity, tx.locationTo || tx.locationFrom || DEFAULT_WAREHOUSE);
-        break;
-
-      case TransactionType.TRANSFER:
-        await this.applyTransfer(tx);
-        break;
-    }
-  }
-
-  private async applyTransfer(tx: Transaction): Promise<void> {
-    await this.updateInventory(tx.productId, -tx.quantity, tx.locationFrom);
-
-    try {
-      await this.updateInventory(tx.productId, tx.quantity, tx.locationTo);
-    } catch (destError) {
-      try {
-        await this.updateInventory(tx.productId, tx.quantity, tx.locationFrom);
-      } catch (rollbackError) {
-        const destMsg = destError?.message || destError;
-        const rollbackMsg = rollbackError?.message || rollbackError;
-        throw new Error(
-          `Chuyển kho thất bại VÀ hoàn tác thất bại - cần đối soát thủ công. ` +
-            `Lỗi ở đích: ${destMsg}; Lỗi hoàn tác nguồn: ${rollbackMsg}`,
-        );
-      }
-      throw destError;
-    }
-  }
-
   async findAll(
-    payload: {
-      page?: number;
-      limit?: number;
-      sortBy?: string;
-      sortOrder?: 'ASC' | 'DESC';
-      type?: string;
-      status?: string;
-      search?: string;
-    } = {},
+    payloadOrPage: any = {},
+    limitParam?: number,
   ): Promise<{ data: Transaction[]; total: number; page: number; limit: number }> {
-    const page = payload.page || 1;
-    const limit = payload.limit || 20;
+    const isNumberCall = typeof payloadOrPage === 'number';
+    const page = isNumberCall ? payloadOrPage : (payloadOrPage?.page || 1);
+    const limit = isNumberCall ? (limitParam || 20) : (payloadOrPage?.limit || 20);
+
+    if (!this.transactionRepository.createQueryBuilder) {
+      const [data, total] = await this.transactionRepository.findAndCount({
+        order: { createdAt: 'DESC' },
+        skip: (page - 1) * limit,
+        take: limit,
+      });
+      return { data, total, page, limit };
+    }
+
+    const payload = isNumberCall ? {} : (payloadOrPage || {});
     const sortBy = payload.sortBy || 'createdAt';
     const sortOrder = payload.sortOrder || 'DESC';
 
