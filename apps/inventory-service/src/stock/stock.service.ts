@@ -338,38 +338,201 @@ export class StockService implements OnModuleInit {
     return { eoq: Math.round(eoq), annualDemand: Math.round(annualDemand) };
   }
 
-  async getReorderInfo(productId: string) {
+  async getInventoryDecision(
+    productId: string,
+    options?: { leadTimeDays?: number; serviceLevel?: number; horizonDays?: number }
+  ) {
     const product = await this.productRepository.findOne({ where: { id: productId } });
     if (!product) {
-      throw new RpcException('Product not found');
+      throw new RpcException('Không tìm thấy sản phẩm');
     }
+
+    const leadTimeDays = Math.max(1, Number(options?.leadTimeDays) || 7);
+    const serviceLevel = Number(options?.serviceLevel) || 0.95;
+    const horizonDays = Math.max(1, Number(options?.horizonDays) || 7);
+
+    // Z-score mapping (Phân phối chuẩn hóa theo mức phục vụ)
+    let zScore = 1.65; // Mặc định 95%
+    if (serviceLevel >= 0.99) zScore = 2.33;
+    else if (serviceLevel >= 0.95) zScore = 1.65;
+    else if (serviceLevel >= 0.90) zScore = 1.28;
+    else if (serviceLevel >= 0.85) zScore = 1.04;
+
+    // 1. Tồn kho hiện tại (On-hand)
     const records = await this.getStock(productId);
-    const currentStock = records.reduce((sum, r) => sum + (r.currentQuantity || 0), 0);
-    const { eoq, annualDemand } = await this.calculateEOQ(product);
+    const onHandStock = records.reduce((sum, r) => sum + (r.currentQuantity || 0), 0);
+
+    // 2. Hàng đang trên đường về (Inbound pending)
+    let inboundStock = 0;
+    try {
+      const txResult = await firstValueFrom(
+        this.transactionClient.send('transaction.findByProduct', { productId, page: 1, limit: 100 }),
+      );
+      const transactions = txResult?.data || [];
+      const inboundPending = transactions.filter((t: any) => t.type === 'INBOUND' && t.status === 'PENDING');
+      inboundStock = inboundPending.reduce((sum: number, t: any) => sum + (Number(t.quantity) || 0), 0);
+    } catch (e: any) {
+      this.logger.warn(`Could not fetch pending inbound for ${productId}: ${e?.message || e}`);
+    }
+
+    const availableStock = onHandStock + inboundStock;
+
+    // 3. Lấy dữ liệu dự báo từ Forecasting Service
+    let forecastList: Array<{ date: string; predictedQuantity: number }> = [];
+    try {
+      const { data } = await axios.get(`${this.forecastingServiceUrl}/forecast/${productId}`, {
+        params: { days: horizonDays },
+        timeout: 5000,
+      });
+      forecastList = data?.forecast || [];
+    } catch (e: any) {
+      this.logger.warn(`Forecasting Service unavailable for decision, fallback to local estimate: ${e?.message || e}`);
+    }
+
+    let avgDailyDemand = 0;
+    let stdDailyDemand = 0;
+    let totalForecastDemand = 0;
+
+    if (forecastList.length > 0) {
+      const quantities = forecastList.map((f) => Number(f.predictedQuantity) || 0);
+      totalForecastDemand = quantities.reduce((a, b) => a + b, 0);
+      avgDailyDemand = totalForecastDemand / quantities.length;
+      if (quantities.length > 1) {
+        const variance = quantities.reduce((sum, q) => sum + Math.pow(q - avgDailyDemand, 2), 0) / (quantities.length - 1);
+        stdDailyDemand = Math.sqrt(variance);
+      }
+    } else {
+      const estimatedAnnual = await this.estimateAnnualDemand(productId);
+      avgDailyDemand = estimatedAnnual / 365;
+      stdDailyDemand = avgDailyDemand * 0.25;
+      totalForecastDemand = avgDailyDemand * horizonDays;
+    }
+
+    if (stdDailyDemand === 0 && avgDailyDemand > 0) {
+      stdDailyDemand = avgDailyDemand * 0.2;
+    }
+
+    // 4. Các công thức Quản trị Tồn kho lý thuyết (Mục 2.5 & 3.4 PDF)
+    // Safety Stock (SS) = Z * sigma_d * sqrt(L)
+    const safetyStock = Math.ceil(zScore * stdDailyDemand * Math.sqrt(leadTimeDays));
+
+    // Reorder Point (ROP) = (avgDailyDemand * L) + Safety Stock
+    const leadTimeDemand = avgDailyDemand * leadTimeDays;
+    const reorderPoint = Math.ceil(leadTimeDemand + safetyStock);
+
+    // EOQ (Lượng đặt hàng kinh tế)
+    const orderingCost = Number(product.orderingCost) || DEFAULT_ORDERING_COST;
+    const holdingCostRate = Number(product.holdingCostRate) || DEFAULT_HOLDING_COST_RATE;
+    const unitPrice = Number(product.price) || 1;
+    const annualDemand = Math.max(1, avgDailyDemand * 365);
+    const holdingCostPerUnit = holdingCostRate * unitPrice;
+    const eoq = Math.round(Math.sqrt((2 * annualDemand * orderingCost) / Math.max(0.0001, holdingCostPerUnit)));
+
+    // Projected Stock = onHandStock + inboundStock - totalForecastDemand
+    const projectedStock = Math.round((onHandStock + inboundStock - totalForecastDemand) * 10) / 10;
+
+    // 5. Đánh giá trạng thái & Phân loại rủi ro (Risk Alert)
+    let status: 'CRITICAL_STOCKOUT' | 'BELOW_ROP' | 'OPTIMAL' | 'OVERSTOCK' = 'OPTIMAL';
+    let badgeColor = '#10b981'; // Green
+    let title = 'Tồn kho an toàn & Tối ưu';
+    let message = `Tồn khả dụng (${availableStock}) cao hơn điểm đặt hàng lại ROP (${reorderPoint}). Đáp ứng tốt nhu cầu dự báo.`;
+    let isReorderNeeded = false;
+    let recommendedOrderQuantity = 0;
+
+    if (projectedStock <= 0) {
+      status = 'CRITICAL_STOCKOUT';
+      badgeColor = '#ef4444'; // Red
+      title = 'Nguy cơ đứt hàng trầm trọng (Stockout Risk)';
+      message = `Tồn kho dự phóng (${projectedStock}) sẽ bị âm trong ${horizonDays} ngày tới do nhu cầu dự báo (${totalForecastDemand.toFixed(1)}) vượt quá lượng hàng có sẵn (${availableStock}).`;
+      isReorderNeeded = true;
+      recommendedOrderQuantity = Math.max(eoq, Math.ceil(Math.abs(projectedStock) + safetyStock));
+    } else if (availableStock <= reorderPoint) {
+      status = 'BELOW_ROP';
+      badgeColor = '#f59e0b'; // Amber/Orange
+      title = 'Dưới ngưỡng đặt hàng (Below ROP)';
+      message = `Tồn khả dụng (${availableStock}) đã giảm xuống dưới Điểm đặt hàng lại ROP (${reorderPoint}). Cần kích hoạt đặt hàng bổ sung theo chính sách.`;
+      isReorderNeeded = true;
+      recommendedOrderQuantity = eoq;
+    } else if (onHandStock > 3 * (avgDailyDemand * 30) && onHandStock > 50) {
+      status = 'OVERSTOCK';
+      badgeColor = '#8b5cf6'; // Purple
+      title = 'Cảnh báo dư thừa tồn kho (Overstock)';
+      message = `Tồn kho hiện tại (${onHandStock}) vượt quá nhu cầu tiêu thụ của 3 tháng tới. Khuyến nghị giảm nhập hoặc điều chuyển kho để tối ưu vốn.`;
+      isReorderNeeded = false;
+      recommendedOrderQuantity = 0;
+    }
 
     return {
-      productId,
-      currentStock,
-      eoq,
-      annualDemand,
-      lowStock: currentStock < eoq,
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku,
+      currentStock: onHandStock,
+      inboundStock,
+      availableStock,
+      leadTimeDays,
+      serviceLevel,
+      zScore,
+      forecast: {
+        horizonDays,
+        avgDailyDemand: Math.round(avgDailyDemand * 100) / 100,
+        stdDailyDemand: Math.round(stdDailyDemand * 100) / 100,
+        totalForecastDemand: Math.round(totalForecastDemand * 100) / 100,
+        predictedDaily: forecastList,
+      },
+      inventoryPolicy: {
+        safetyStock,
+        reorderPoint,
+        leadTimeDemand: Math.round(leadTimeDemand * 10) / 10,
+        eoq,
+        annualDemand: Math.round(annualDemand),
+        orderingCost,
+        holdingCostRate,
+        holdingCostPerUnit: Math.round(holdingCostPerUnit),
+        projectedStock,
+      },
+      riskAlert: {
+        status,
+        badgeColor,
+        title,
+        message,
+        isReorderNeeded,
+        recommendedOrderQuantity,
+      },
+    };
+  }
+
+  async getReorderInfo(productId: string) {
+    const decision = await this.getInventoryDecision(productId);
+    return {
+      productId: decision.productId,
+      currentStock: decision.currentStock,
+      inboundStock: decision.inboundStock,
+      availableStock: decision.availableStock,
+      safetyStock: decision.inventoryPolicy.safetyStock,
+      reorderPoint: decision.inventoryPolicy.reorderPoint,
+      eoq: decision.inventoryPolicy.eoq,
+      annualDemand: decision.inventoryPolicy.annualDemand,
+      projectedStock: decision.inventoryPolicy.projectedStock,
+      lowStock: decision.riskAlert.isReorderNeeded,
+      status: decision.riskAlert.status,
+      riskAlert: decision.riskAlert,
     };
   }
 
   private async checkAndEmitAlert(productId: string, currentQuantity: number) {
     try {
-      const product = await this.productRepository.findOne({ where: { id: productId } });
-      if (!product) return;
-
-      const { eoq } = await this.calculateEOQ(product);
-      if (currentQuantity < eoq) {
-        this.logger.log(`Stock (${currentQuantity}) below EOQ threshold (${eoq}) for ${product.name}, emitting alert.`);
+      const decision = await this.getInventoryDecision(productId);
+      if (decision.riskAlert.isReorderNeeded) {
+        this.logger.log(`Stock (${currentQuantity}) below ROP threshold (${decision.inventoryPolicy.reorderPoint}) for ${decision.productName}, emitting alert.`);
         this.notificationClient.emit('product.stock.changed', {
           productId,
-          productName: product.name,
+          productName: decision.productName,
           newStock: currentQuantity,
-          threshold: eoq,
-          alertType: 'LOW_STOCK',
+          threshold: decision.inventoryPolicy.reorderPoint,
+          safetyStock: decision.inventoryPolicy.safetyStock,
+          recommendedOrderQuantity: decision.riskAlert.recommendedOrderQuantity,
+          alertType: decision.riskAlert.status,
+          message: decision.riskAlert.message,
         });
       }
     } catch (error: any) {

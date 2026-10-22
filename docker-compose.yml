@@ -152,6 +152,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env.docker
+    volumes:
+      - ./apps/data-processing-service:/app
     networks:
       - wms_network
 
@@ -167,6 +169,8 @@ services:
     depends_on:
       - data-processing-service
     env_file: .env.docker
+    volumes:
+      - ./apps/forecasting-service:/app
     networks:
       - wms_network
 
