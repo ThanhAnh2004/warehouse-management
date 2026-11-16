@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductsModule } from './products/products.module';
 import { StockModule } from './stock/stock.module';
+import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { StockModule } from './stock/stock.module';
     }),
     ProductsModule,
     StockModule,
+    TransactionsModule,
   ],
   controllers: [InventoryServiceController],
   providers: [InventoryServiceService],

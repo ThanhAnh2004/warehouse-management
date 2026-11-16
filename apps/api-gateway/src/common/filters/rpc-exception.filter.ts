@@ -35,7 +35,9 @@ export class RpcExceptionFilter implements ExceptionFilter {
       });
     }
 
-    const status = exception?.status || exception?.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = typeof exception?.status === 'number'
+      ? exception.status
+      : (typeof exception?.statusCode === 'number' ? exception.statusCode : HttpStatus.INTERNAL_SERVER_ERROR);
     const finalMessage =
       rawErrorMsg === 'An unexpected microservice error occurred'
         ? 'Dịch vụ Microservice xử lý không phản hồi hoặc đã xảy ra sự cố kết nối.'

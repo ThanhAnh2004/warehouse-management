@@ -46,14 +46,16 @@ class GlobalXGBoostForecaster:
     def fit(
         self,
         products_series: Dict[str, List[dict]],
+        products_meta: Optional[Dict[str, dict]] = None,
         val_days: int = 7,
     ) -> dict:
         """
         Huấn luyện mô hình toàn cục trên dữ liệu của TẤT CẢ các sản phẩm.
         - products_series: { product_id: [ {"date": "YYYY-MM-DD", "quantity": float}, ... ] }
+        - products_meta: { product_id: { "category": str, "price": float } }
         - val_days: số ngày cuối cùng của chuỗi dùng để đánh giá điểm WAPE/MAE/RMSE toàn cục.
         """
-        X, y, metadata = build_global_features(products_series)
+        X, y, metadata = build_global_features(products_series, products_meta=products_meta)
         if X.empty or len(y) == 0:
             raise ValueError("Không đủ dữ liệu toàn kho để huấn luyện Global Model.")
 
@@ -90,20 +92,34 @@ class GlobalXGBoostForecaster:
         product_id: str,
         series_data: List[dict],
         horizon_days: int = 7,
+        product_category: Optional[str] = None,
+        product_price: Optional[float] = None,
     ) -> List[dict]:
         """
         Dự báo tương lai cho 1 sản phẩm cụ thể bằng mô hình toàn cục.
-        Sử dụng kỹ thuật Recursive Autoregressive Forecasting.
+        Sử dụng kỹ thuật Recursive Autoregressive Forecasting kết hợp Category & Price.
         """
         if not self.is_fitted or self.model is None:
             raise RuntimeError("Global Model chưa được huấn luyện hoặc nạp vào bộ nhớ.")
 
+        today = pd.Timestamp.now().floor('D')
         daily_series = to_daily_series(series_data)
-        if len(daily_series) == 0:
-            return []
 
-        history = daily_series.copy()
-        last_date = history.index.max()
+        if len(daily_series) == 0:
+            # Sản phẩm hoàn toàn mới hoặc chưa có lịch sử xuất kho:
+            # Khởi tạo chuỗi 30 ngày về trước với giá trị 0.0 để mô hình tính lags/rolling (zero baseline)
+            full_idx = pd.date_range(start=today - pd.Timedelta(days=30), end=today, freq='D')
+            history = pd.Series(0.0, index=full_idx)
+            start_date = today
+        else:
+            history = daily_series.copy()
+            # Luôn neo mốc thời gian bắt đầu dự báo từ ngày hôm nay (Real-time Live Forecast)
+            if history.index.max() < today:
+                full_idx = pd.date_range(start=history.index.min(), end=today, freq='D')
+                history = history.reindex(full_idx, fill_value=0.0)
+            start_date = daily_series.index.min()
+
+        last_date = max(history.index.max(), today)
         forecasts = []
 
         for step in range(1, horizon_days + 1):
@@ -113,6 +129,8 @@ class GlobalXGBoostForecaster:
                 target_date=target_date,
                 product_id=product_id,
                 product_metadata=self.metadata,
+                product_category=product_category,
+                product_price=product_price,
             )
 
             pred_val = float(self.model.predict(step_features)[0])
@@ -124,7 +142,7 @@ class GlobalXGBoostForecaster:
             forecasts.append({
                 "date": target_date.strftime("%Y-%m-%d"),
                 "predictedQuantity": round(pred_val, 2),
-                "dayIndex": int((target_date - daily_series.index.min()).days),
+                "dayIndex": int((target_date - start_date).days),
             })
 
         return forecasts

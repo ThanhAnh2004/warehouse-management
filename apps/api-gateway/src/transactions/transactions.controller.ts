@@ -13,7 +13,6 @@ import { firstValueFrom } from 'rxjs';
 @UseGuards(AuthGuard, PermissionsGuard)
 export class TransactionsController {
   constructor(
-    @Inject('TRANSACTION_SERVICE') private readonly transactionClient: ClientProxy,
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
   ) {}
 
@@ -24,19 +23,19 @@ export class TransactionsController {
       ...body,
       createdBy: req.user.sub,
     };
-    return this.transactionClient.send('transaction.create', payload);
+    return this.inventoryClient.send('transaction.create', payload);
   }
 
   @Patch(':id')
   @RequirePermissions('transactions:create')
   updateTransaction(@Param('id') id: string, @Body() body: any) {
-    return this.transactionClient.send('transaction.update', { id, ...body });
+    return this.inventoryClient.send('transaction.update', { id, ...body });
   }
 
   @Delete(':id')
   @RequirePermissions('transactions:create')
   deleteTransaction(@Param('id') id: string) {
-    return this.transactionClient.send('transaction.delete', id);
+    return this.inventoryClient.send('transaction.delete', id);
   }
 
   @Get()
@@ -66,7 +65,7 @@ export class TransactionsController {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     if (productId) {
-      return this.transactionClient.send('transaction.findByProduct', {
+      return this.inventoryClient.send('transaction.findByProduct', {
         productId,
         page: pageNum,
         limit: limitNum,
@@ -86,7 +85,7 @@ export class TransactionsController {
       }
     }
 
-    return this.transactionClient.send('transaction.findAll', {
+    return this.inventoryClient.send('transaction.findAll', {
       page: pageNum,
       limit: limitNum,
       sortBy,
@@ -110,7 +109,7 @@ export class TransactionsController {
     @Query('limit') limit: string = '20',
     @Query('status') status: string = '',
   ) {
-    return this.transactionClient.send('transaction.getAllSagas', {
+    return this.inventoryClient.send('transaction.getAllSagas', {
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
       status,
@@ -120,6 +119,6 @@ export class TransactionsController {
   @Get(':id/saga')
   @RequirePermissions('transactions:read')
   getTransactionSaga(@Param('id') id: string) {
-    return this.transactionClient.send('transaction.getSaga', { transactionId: id });
+    return this.inventoryClient.send('transaction.getSaga', { transactionId: id });
   }
 }

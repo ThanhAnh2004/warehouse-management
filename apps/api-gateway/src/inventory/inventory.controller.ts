@@ -33,7 +33,6 @@ const buildCleanFilename = (originalname: string, defaultPrefix = 'product') => 
 export class InventoryController {
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
-    @Inject('TRANSACTION_SERVICE') private readonly transactionClient: ClientProxy,
     private readonly configService: ConfigService,
   ) {}
 
@@ -94,11 +93,11 @@ export class InventoryController {
     const initQty = Number(createProductDto.quantity) || 0;
     if (createdProduct && createdProduct.id && initQty > 0) {
       try {
-        await firstValueFrom(this.transactionClient.send('transaction.create', {
+        await firstValueFrom(this.inventoryClient.send('transaction.create', {
           productId: createdProduct.id,
           type: 'INBOUND',
           quantity: initQty,
-          locationTo: createProductDto.location || 'A01',
+          locationTo: createProductDto.location || 'A1-L1',
           note: 'Khởi tạo hàng tồn kho khi tạo sản phẩm mới vào danh mục',
           createdBy: createProductDto.createdBy || 'Quản trị viên',
         }));
@@ -255,7 +254,7 @@ export class InventoryController {
   async relocateStock(@Body() dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
     const res = await firstValueFrom(this.inventoryClient.send('location.relocate_stock', dto));
     try {
-      await firstValueFrom(this.transactionClient.send('transaction.create', {
+      await firstValueFrom(this.inventoryClient.send('transaction.create', {
         productId: dto.productId,
         type: 'TRANSFER',
         quantity: Number(dto.quantity) || 1,
@@ -282,7 +281,7 @@ export class InventoryController {
 
     if (qty > 0) {
       try {
-        await firstValueFrom(this.transactionClient.send('transaction.create', {
+        await firstValueFrom(this.inventoryClient.send('transaction.create', {
           productId: dto.productId,
           type: 'INBOUND',
           quantity: qty,
