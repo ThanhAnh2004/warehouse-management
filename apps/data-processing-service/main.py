@@ -35,7 +35,7 @@ def get_db_connection():
             port=os.getenv('POSTGRES_PORT', '5432'),
             user=os.getenv('POSTGRES_USER', 'postgres'),
             password=os.getenv('POSTGRES_PASSWORD', '818757'),
-            database=os.getenv('POSTGRES_DB_TRANSACTION', 'warehouse_transaction'),
+            database=os.getenv('POSTGRES_DB_TRANSACTION', 'warehouse_inventory'),
         )
     except Exception as e:
         print(f"Error connecting to database: {e}")
@@ -118,7 +118,7 @@ def health():
 
 
 @app.get("/quality/overview")
-def quality_overview(lookback_days: int = 180):
+def quality_overview(lookback_days: int = 730):
     """
     Tổng quan chất lượng dữ liệu toàn kho: chạy pipeline làm sạch cho TẤT CẢ sản phẩm
     có phát sinh xuất kho và tổng hợp lại số bản ghi đã bị loại ở từng bước.
@@ -175,7 +175,7 @@ def quality_overview(lookback_days: int = 180):
 
 
 @app.get("/process/{product_id}")
-def process_product_data(product_id: str, lookback_days: int = 180):
+def process_product_data(product_id: str, lookback_days: int = 730):
     """
     Endpoint thu thập dữ liệu xuất kho thô của 1 sản phẩm, làm sạch & chuẩn hóa,
     trả về chuỗi thời gian "sạch" sẵn sàng cho Forecasting Service.
@@ -185,11 +185,30 @@ def process_product_data(product_id: str, lookback_days: int = 180):
         raise HTTPException(status_code=500, detail="Data Processing Service: Database connection failed")
 
     try:
+        # Lấy thông tin ngành hàng, giá bán & ngày tạo / ngày bắt đầu xuất kho của sản phẩm
+        prod_category = "Khác"
+        prod_price = 1000000.0
+        prod_created_at = None
+        try:
+            p_res = pd.read_sql_query('SELECT category, COALESCE(price, 0) as price, "createdAt" FROM products WHERE id::text = %s', conn, params=(str(product_id),))
+            if not p_res.empty:
+                prod_category = str(p_res.iloc[0]["category"])
+                prod_price = float(p_res.iloc[0]["price"])
+                if pd.notnull(p_res.iloc[0]["createdAt"]):
+                    prod_created_at = pd.to_datetime(p_res.iloc[0]["createdAt"]).isoformat()
+        except Exception:
+            pass
+
         raw_df = fetch_raw_outbound(conn, product_id, lookback_days)
 
         if raw_df.empty:
             return {
                 "productId": product_id,
+                "category": prod_category,
+                "price": prod_price,
+                "createdAt": prod_created_at,
+                "firstOutboundAt": None,
+                "daysActive": 0,
                 "series": [],
                 "stats": {"raw": 0, "cleaned": 0},
                 "message": "Không có dữ liệu giao dịch OUTBOUND nào cho sản phẩm này",
@@ -201,6 +220,11 @@ def process_product_data(product_id: str, lookback_days: int = 180):
         if cleaned_df.empty:
             return {
                 "productId": product_id,
+                "category": prod_category,
+                "price": prod_price,
+                "createdAt": prod_created_at,
+                "firstOutboundAt": None,
+                "daysActive": 0,
                 "series": [],
                 "stats": stats,
                 "message": "Dữ liệu sau khi làm sạch không còn bản ghi hợp lệ",
@@ -208,6 +232,10 @@ def process_product_data(product_id: str, lookback_days: int = 180):
             }
 
         daily_df = normalize_daily_series(cleaned_df)
+
+        first_date = daily_df['date'].min()
+        last_date = daily_df['date'].max()
+        days_active = int((last_date - first_date).days) + 1 if not daily_df.empty else 0
 
         series = [
             {
@@ -220,6 +248,11 @@ def process_product_data(product_id: str, lookback_days: int = 180):
 
         return {
             "productId": product_id,
+            "category": prod_category,
+            "price": prod_price,
+            "createdAt": prod_created_at,
+            "firstOutboundAt": first_date.isoformat() if not daily_df.empty else None,
+            "daysActive": days_active,
             "series": series,
             "stats": stats,
             "dateRange": {"start": series[0]['date'], "end": series[-1]['date']} if series else None,
@@ -235,7 +268,7 @@ def process_product_data(product_id: str, lookback_days: int = 180):
 
 
 @app.get("/process-all")
-def process_all_products(lookback_days: int = 180):
+def process_all_products(lookback_days: int = 730):
     """
     Thu thập, làm sạch và chuẩn hóa chuỗi dữ liệu xuất kho cho TẤT CẢ các sản phẩm trong kho.
     Trả về danh sách tất cả các sản phẩm để Global Forecasting Model có thể nạp
@@ -278,9 +311,22 @@ def process_all_products(lookback_days: int = 180):
             if series:
                 products_map[str(product_id)] = series
 
+        # Lấy metadata (ngành hàng & giá bán) cho tất cả sản phẩm
+        products_metadata = {}
+        try:
+            p_all = pd.read_sql_query('SELECT id::text, category, COALESCE(price, 0) as price FROM products', conn)
+            for _, r in p_all.iterrows():
+                products_metadata[str(r["id"])] = {
+                    "category": str(r["category"]),
+                    "price": float(r["price"])
+                }
+        except Exception as e:
+            print(f"Warning: could not fetch products metadata: {e}")
+
         return {
             "totalProducts": len(products_map),
             "products": products_map,
+            "productsMetadata": products_metadata,
             "processedAt": datetime.now(timezone.utc).isoformat(),
         }
 

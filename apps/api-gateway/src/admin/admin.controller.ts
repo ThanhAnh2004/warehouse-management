@@ -52,15 +52,11 @@ export class AdminController {
         port: this.configService.get<number>('IDENTITY_SERVICE_PORT', 8001),
       },
       {
-        name: 'Inventory Service',
+        name: 'Inventory & Transaction Service',
         host: this.configService.get<string>('INVENTORY_SERVICE_HOST', 'localhost'),
         port: this.configService.get<number>('INVENTORY_SERVICE_PORT', 8002),
       },
-      {
-        name: 'Transaction Service',
-        host: this.configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
-        port: this.configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
-      },
+      
       {
         name: 'Notification Service',
         host: this.configService.get<string>('NOTIFICATION_SERVICE_HOST', 'localhost'),

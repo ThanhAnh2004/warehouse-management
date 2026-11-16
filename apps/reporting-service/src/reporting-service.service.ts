@@ -9,7 +9,6 @@ export class ReportingServiceService {
 
   constructor(
     @Inject('INVENTORY_SERVICE') private readonly inventoryClient: ClientProxy,
-    @Inject('TRANSACTION_SERVICE') private readonly transactionClient: ClientProxy,
     private readonly configService: ConfigService,
   ) {}
 
@@ -40,7 +39,7 @@ export class ReportingServiceService {
     // 2. Fetch all transactions
     let transactionsData;
     try {
-      transactionsData = await firstValueFrom(this.transactionClient.send('transaction.findAll', { limit: 100000 }));
+      transactionsData = await firstValueFrom(this.inventoryClient.send('transaction.findAll', { limit: 100000 }));
     } catch (e) {
       transactionsData = [];
     }
@@ -92,7 +91,7 @@ export class ReportingServiceService {
 
     let transactionsData;
     try {
-      transactionsData = await firstValueFrom(this.transactionClient.send('transaction.findAll', { limit: 100000 }));
+      transactionsData = await firstValueFrom(this.inventoryClient.send('transaction.findAll', { limit: 100000 }));
     } catch (e) {
       transactionsData = [];
     }
@@ -191,7 +190,7 @@ export class ReportingServiceService {
 
     let transactionsData;
     try {
-      transactionsData = await firstValueFrom(this.transactionClient.send('transaction.findAll', { limit: 100000 }));
+      transactionsData = await firstValueFrom(this.inventoryClient.send('transaction.findAll', { limit: 100000 }));
     } catch (e) {
       transactionsData = [];
     }

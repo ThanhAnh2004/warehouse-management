@@ -73,8 +73,8 @@ export class SystemController {
     const targets: ServiceCheck[] = [
       { name: 'API Gateway', category: 'gateway', host: 'self', port: Number(cfg('API_GATEWAY_PORT', '8000')) },
       { name: 'Identity & Auth Service', category: 'microservice', host: cfg('IDENTITY_SERVICE_HOST', 'localhost'), port: Number(cfg('IDENTITY_SERVICE_PORT', '8001')), queue: 'identity_queue' },
-      { name: 'Inventory Service', category: 'microservice', host: cfg('INVENTORY_SERVICE_HOST', 'localhost'), port: Number(cfg('INVENTORY_SERVICE_PORT', '8002')), queue: 'inventory_queue' },
-      { name: 'Transaction Service', category: 'microservice', host: cfg('TRANSACTION_SERVICE_HOST', 'localhost'), port: Number(cfg('TRANSACTION_SERVICE_PORT', '8003')), queue: 'transaction_queue' },
+      { name: 'Inventory & Transaction Service', category: 'microservice', host: cfg('INVENTORY_SERVICE_HOST', 'localhost'), port: Number(cfg('INVENTORY_SERVICE_PORT', '8002')), queue: 'inventory_queue' },
+      
       { name: 'Notification Service', category: 'microservice', host: cfg('NOTIFICATION_SERVICE_HOST', 'localhost'), port: Number(cfg('NOTIFICATION_SERVICE_PORT', '3004')), queue: 'notification_queue' },
       { name: 'Reporting Service', category: 'microservice', host: cfg('REPORTING_SERVICE_HOST', 'localhost'), port: Number(cfg('REPORTING_SERVICE_PORT', '3005')), queue: 'reporting_queue' },
       { name: 'Forecasting Service', category: 'python', host: cfg('FORECASTING_SERVICE_HOST', 'localhost'), port: Number(cfg('FORECASTING_SERVICE_PORT', '8004')) },
@@ -186,8 +186,7 @@ export class SystemController {
 
     const queuePairs = [
       { service: 'Identity Service', queue: 'identity_queue', dlq: 'identity_dlq' },
-      { service: 'Inventory Service', queue: 'inventory_queue', dlq: 'inventory_dlq' },
-      { service: 'Transaction Service', queue: 'transaction_queue', dlq: 'transaction_dlq' },
+      { service: 'Inventory & Transaction Service', queue: 'inventory_queue', dlq: 'inventory_dlq' },
       { service: 'Notification Service', queue: 'notification_queue', dlq: 'notification_dlq' },
       { service: 'Reporting Service', queue: 'reporting_queue', dlq: 'reporting_dlq' },
     ];
