@@ -54,15 +54,6 @@
       "compilerOptions": {
         "tsConfigPath": "apps/reporting-service/tsconfig.app.json"
       }
-    },
-    "transaction-service": {
-      "type": "application",
-      "root": "apps/transaction-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/transaction-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/transaction-service/tsconfig.app.json"
-      }
     }
   }
 }
