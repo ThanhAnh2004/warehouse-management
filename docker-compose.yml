@@ -53,7 +53,6 @@ services:
     depends_on:
       - identity-service
       - inventory-service
-      - transaction-service
       - notification-service
       - reporting-service
     env_file: .env.docker
@@ -91,22 +90,6 @@ services:
     env_file: .env.docker
     networks:
       - wms_network
-
-  transaction-service:
-    build:
-      context: .
-      dockerfile: Dockerfile.nest
-      args:
-        APP_NAME: transaction-service
-    container_name: warehouse_transaction_service
-    ports:
-      - "8003:8003"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    env_file: .env.docker
-    networks:
-      - wms_network
-
   notification-service:
     build:
       context: .
@@ -135,7 +118,6 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - inventory-service
-      - transaction-service
       - forecasting-service
     env_file: .env.docker
     networks:

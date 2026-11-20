@@ -14,7 +14,6 @@ import { SystemController } from './system/system.controller';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-yet';
 
 @Module({
   imports: [
@@ -24,15 +23,13 @@ import { redisStore } from 'cache-manager-redis-yet';
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => ({
-        // Use in-memory cache instead of Redis to prevent ECONNREFUSED
+        // Use in-memory cache
       }),
     }),
-    // Import ConfigModule để đọc file .env ở thư mục gốc
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // Đăng ký Client Auth Service bất đồng bộ để dùng ConfigService đọc env
     ClientsModule.registerAsync([
       {
         name: 'IDENTITY_SERVICE',
@@ -79,31 +76,6 @@ import { redisStore } from 'cache-manager-redis-yet';
                 options: {
                   host: configService.get<string>('INVENTORY_SERVICE_HOST', 'localhost'),
                   port: configService.get<number>('INVENTORY_SERVICE_PORT', 8002),
-                },
-              };
-        },
-        inject: [ConfigService],
-      },
-      {
-        name: 'TRANSACTION_SERVICE',
-        imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => {
-          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
-          return isRmq
-            ? {
-                transport: Transport.RMQ,
-                options: {
-                  urls: [configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672')],
-                  queue: 'transaction_queue',
-                  queueOptions: { durable: true, deadLetterExchange: 'amq.direct', deadLetterRoutingKey: 'transaction_dlq' },
-                  socketOptions: { heartbeatIntervalInSeconds: 5, reconnectTimeInSeconds: 5 },
-                },
-              }
-            : {
-                transport: Transport.TCP,
-                options: {
-                  host: configService.get<string>('TRANSACTION_SERVICE_HOST', 'localhost'),
-                  port: configService.get<number>('TRANSACTION_SERVICE_PORT', 8003),
                 },
               };
         },
@@ -161,7 +133,17 @@ import { redisStore } from 'cache-manager-redis-yet';
       },
     ]),
   ],
-  controllers: [AppController, AuthController, UsersController, InventoryController, TransactionsController, NotificationsController, ReportsController, AdminController, SystemController],
+  controllers: [
+    AppController,
+    AuthController,
+    UsersController,
+    InventoryController,
+    TransactionsController,
+    NotificationsController,
+    ReportsController,
+    AdminController,
+    SystemController,
+  ],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

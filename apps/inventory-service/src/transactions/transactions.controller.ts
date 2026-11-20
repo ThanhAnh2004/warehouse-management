@@ -32,6 +32,11 @@ export class TransactionsController {
     return this.transactionsService.findByProduct(payload.productId, payload?.page, payload?.limit);
   }
 
+  @MessagePattern('transaction.findOne')
+  findOne(@Payload() id: string) {
+    return this.transactionsService.findOne(id);
+  }
+
   @MessagePattern('transaction.getSaga')
   getSaga(@Payload() payload: { transactionId?: string; id?: string }) {
     if (payload.id) {
@@ -42,6 +47,6 @@ export class TransactionsController {
 
   @MessagePattern('transaction.getAllSagas')
   getAllSagas(@Payload() payload: { page?: number; limit?: number; status?: string } = {}) {
-    return this.transactionsService.getAllSagas(payload);
+    return this.transactionsService.getAllSagas(payload?.page, payload?.limit, payload?.status);
   }
 }

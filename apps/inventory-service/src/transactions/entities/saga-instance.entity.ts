@@ -1,11 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
-
-export enum SagaType {
-  TRANSFER = 'TRANSFER',
-  OUTBOUND = 'OUTBOUND',
-  INBOUND = 'INBOUND',
-  ADJUSTMENT = 'ADJUSTMENT',
-}
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 export enum SagaStatus {
   STARTED = 'STARTED',
@@ -16,19 +9,22 @@ export enum SagaStatus {
   FAILED = 'FAILED',
 }
 
+export enum SagaType {
+  INBOUND = 'INBOUND',
+  OUTBOUND = 'OUTBOUND',
+  TRANSFER = 'TRANSFER',
+  ADJUSTMENT = 'ADJUSTMENT',
+}
+
 export interface SagaStepLog {
   step: string;
   action: string;
   status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'COMPENSATED';
-  payload?: any;
-  error?: string;
   timestamp: string;
+  detail?: any;
 }
 
 @Entity('saga_instances')
-@Index(['transactionId'])
-@Index(['status'])
-@Index(['createdAt'])
 export class SagaInstance {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -45,24 +41,21 @@ export class SagaInstance {
   @Column({
     type: 'enum',
     enum: SagaStatus,
-    default: SagaStatus.STARTED,
+    default: SagaStatus.IN_PROGRESS,
   })
   status: SagaStatus;
 
-  @Column({ default: 'INITIAL' })
+  @Column()
   currentStep: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: 'jsonb' })
   payload: any;
 
-  @Column({ type: 'jsonb', default: [] })
+  @Column({ type: 'jsonb' })
   stepLogs: SagaStepLog[];
 
   @Column({ type: 'text', nullable: true })
-  errorMessage: string;
-
-  @Column({ type: 'int', default: 0 })
-  retryCount: number;
+  errorMessage?: string;
 
   @CreateDateColumn()
   createdAt: Date;

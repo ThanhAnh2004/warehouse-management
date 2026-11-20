@@ -14,7 +14,7 @@ export enum TransactionStatus {
 }
 
 @Entity('transactions')
-@Index(['productId', 'type', 'createdAt']) // phục vụ truy vấn lịch sử theo sản phẩm cho Data Processing/Forecasting Service
+@Index(['productId', 'type', 'createdAt'])
 export class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;

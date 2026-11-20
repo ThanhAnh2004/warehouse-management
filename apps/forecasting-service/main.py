@@ -36,7 +36,7 @@ DATA_PROCESSING_SERVICE_URL = f"http://{DATA_PROCESSING_SERVICE_HOST}:{DATA_PROC
 DEFAULT_ANNUAL_DEMAND = 260.0
 
 
-def _fetch_cleaned_series(product_id: str, lookback_days: int = 180) -> dict:
+def _fetch_cleaned_series(product_id: str, lookback_days: int = 730) -> dict:
     """Lấy chuỗi OUTBOUND đã làm sạch từ Data Processing Service cho 1 sản phẩm."""
     resp = requests.get(
         f"{DATA_PROCESSING_SERVICE_URL}/process/{product_id}",
@@ -47,7 +47,7 @@ def _fetch_cleaned_series(product_id: str, lookback_days: int = 180) -> dict:
     return resp.json()
 
 
-def _fetch_all_cleaned_products(lookback_days: int = 180) -> dict:
+def _fetch_all_cleaned_products(lookback_days: int = 730) -> dict:
     """Lấy dữ liệu đã làm sạch của TẤT CẢ các sản phẩm từ Data Processing Service."""
     resp = requests.get(
         f"{DATA_PROCESSING_SERVICE_URL}/process-all",
@@ -103,7 +103,7 @@ def model_info():
 
 
 @app.post("/train/global")
-def trigger_global_training(lookback_days: int = Query(default=180, ge=30, le=730)):
+def trigger_global_training(lookback_days: int = Query(default=730, ge=30, le=1200)):
     """
     Kích hoạt huấn luyện 1 mô hình Global duy nhất cho toàn bộ sản phẩm trong kho hàng:
     - Kéo toàn bộ dữ liệu giao dịch sạch từ Data Processing Service.
@@ -125,10 +125,11 @@ def trigger_global_training(lookback_days: int = Query(default=180, ge=30, le=73
             detail="Không có sản phẩm nào có lịch sử xuất kho hợp lệ để huấn luyện mô hình.",
         )
 
+    products_meta = all_data.get("productsMetadata", {})
     try:
-        train_result = train_global_model(products_map)
+        train_result = train_global_model(products_map, products_meta=products_meta)
         return {
-            "message": "Huấn luyện Global Model thành công!",
+            "message": "Huấn luyện Global Model thành công! (Đã nâng cấp Ưu tiên 1)",
             **train_result,
         }
     except Exception as e:
@@ -137,6 +138,8 @@ def trigger_global_training(lookback_days: int = Query(default=180, ge=30, le=73
         raise HTTPException(status_code=500, detail=f"Lỗi khi huấn luyện Global Model: {str(e)}")
 
 
+MIN_DAYS_FOR_FORECAST = 30
+
 @app.get("/forecast/{product_id}")
 def forecast_demand(
     product_id: str,
@@ -144,10 +147,9 @@ def forecast_demand(
 ):
     """
     Dự báo nhu cầu cho sản phẩm `product_id` trong `days` ngày tới:
-    - Sử dụng 1 MÔ HÌNH DUY NHẤT (Global XGBoost Regressor).
-    - Không cần chạy so sánh hay chọn BEST MODEL cho từng sản phẩm.
-    - Tốc độ phản hồi cực nhanh (mili-giây), hỗ trợ cả sản phẩm mới.
-    - Tự động fallback nếu lịch sử < 3 ngày.
+    - Quy tắc kiểm soát chất lượng (Quality Gate): Sản phẩm phải ở trong kho / có lịch sử ít nhất 30 ngày.
+    - Nếu sản phẩm mới (< 30 ngày): Trả về trạng thái tích lũy dữ liệu (INCUBATING), không dự báo sớm để tránh sai lệch.
+    - Nếu sản phẩm đã đủ >= 30 ngày: Sử dụng Global XGBoost Model để dự báo chính xác cao.
     """
     try:
         cleaned = _fetch_cleaned_series(product_id)
@@ -155,16 +157,39 @@ def forecast_demand(
         raise HTTPException(status_code=502, detail=f"Data Processing Service unavailable: {e}")
 
     series = cleaned.get("series", [])
-    if len(series) == 0:
+    category = cleaned.get("category")
+    price = cleaned.get("price")
+    days_active = cleaned.get("daysActive", 0)
+
+    # Nếu chưa có daysActive từ service nhưng có series:
+    if days_active == 0 and len(series) > 0:
+        days_active = len(series)
+
+    # KIỂM TRA ĐIỀU KIỆN 30 NGÀY TÍCH LŨY DỮ LIỆU
+    if days_active < MIN_DAYS_FOR_FORECAST:
+        days_remaining = max(0, MIN_DAYS_FOR_FORECAST - days_active)
         return {
             "productId": product_id,
-            "message": "Không có dữ liệu lịch sử xuất kho nào để dự báo",
+            "status": "INCUBATING",
+            "isEligible": False,
+            "daysAccumulated": days_active,
+            "daysRequired": MIN_DAYS_FOR_FORECAST,
+            "daysRemaining": days_remaining,
+            "message": f"Sản phẩm mới đang trong thời gian tích lũy dữ liệu ({days_active}/{MIN_DAYS_FOR_FORECAST} ngày). Dự báo AI sẽ tự động kích hoạt sau {days_remaining} ngày nữa.",
             "forecast": [],
-            "isFallback": True,
+            "isFallback": False,
+            "evaluatedMetrics": None,
+            "generatedAt": cleaned.get("processedAt"),
         }
 
     try:
-        result = forecast_with_global_model(product_id, series, days)
+        result = forecast_with_global_model(
+            product_id,
+            series,
+            days,
+            product_category=category,
+            product_price=price,
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -172,6 +197,10 @@ def forecast_demand(
 
     return {
         "productId": product_id,
+        "status": "READY",
+        "isEligible": True,
+        "daysAccumulated": days_active,
+        "daysRequired": MIN_DAYS_FOR_FORECAST,
         "horizonDays": days,
         "modelArchitecture": "Single Global Model (1 mô hình cho toàn kho)",
         "algorithm": result["algorithm"],
@@ -186,7 +215,7 @@ def forecast_demand(
 @app.get("/forecast-all")
 def forecast_all_products(
     days: int = Query(default=7, ge=1, le=90, description="Dự báo số ngày tiếp theo"),
-    lookback_days: int = 180,
+    lookback_days: int = 730,
 ):
     """
     Dự báo đồng loạt cho TẤT CẢ các sản phẩm trong kho hàng chỉ trong 1 cuộc gọi API.

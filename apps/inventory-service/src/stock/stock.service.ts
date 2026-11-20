@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Inject, Logger, OnModuleInit, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -9,6 +9,7 @@ import { Location, ZoneType, LocationStatus } from './entities/location.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { TransactionsService } from '../transactions/transactions.service';
 
 const DEFAULT_ORDERING_COST = 50000;
 const DEFAULT_HOLDING_COST_RATE = 0.2;
@@ -27,7 +28,8 @@ export class StockService implements OnModuleInit {
     @InjectRepository(Location)
     private readonly locationRepository: Repository<Location>,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
-    @Inject('TRANSACTION_SERVICE') private readonly transactionClient: ClientProxy,
+    @Inject(forwardRef(() => TransactionsService))
+    private readonly transactionsService: TransactionsService,
     private readonly configService: ConfigService,
   ) {
     const host = this.configService.get<string>('FORECASTING_SERVICE_HOST', 'localhost');
@@ -39,60 +41,64 @@ export class StockService implements OnModuleInit {
     await this.seedLocations();
   }
 
-  // Khởi tạo & Cập nhật lại 20 Kệ kho điện tử đầy đủ trong Postgres DB
+  // Khởi tạo & Cập nhật lại 21 Tầng kệ theo mô hình Phân Khu > Kệ > Tầng chuẩn WMS trong Postgres DB
   async seedLocations() {
     try {
-      this.logger.log('Updating Electronics WMS warehouse locations in-place (20 full racks)...');
+      this.logger.log('Updating Electronics WMS warehouse locations in-place (3 zones, 6 racks, 21 levels)...');
 
       const locationsToSeed: Partial<Location>[] = [
-        // Dãy A: ZONE-HIGH-VAL (Khu Hàng Giá Trị Cao: Laptop, Smartphone, Tablet, Drone) - 6 Kệ
-        { code: 'A01', zone: ZoneType.HIGH_VAL, aisle: 'A', maxCapacity: 300, maxWeightKg: 500, description: 'Tủ kính an ninh cao - Hàng công nghệ đắt tiền' },
-        { code: 'A02', zone: ZoneType.HIGH_VAL, aisle: 'A', maxCapacity: 300, maxWeightKg: 500, description: 'Tủ kính an ninh cao - Smartphone & Tablet' },
-        { code: 'A03', zone: ZoneType.HIGH_VAL, aisle: 'A', maxCapacity: 300, maxWeightKg: 500, description: 'Kệ an toàn - Laptop & MacBook' },
-        { code: 'A04', zone: ZoneType.HIGH_VAL, aisle: 'A', maxCapacity: 300, maxWeightKg: 500, description: 'Kệ an toàn - Camera & Drone' },
-        { code: 'A05', zone: ZoneType.HIGH_VAL, aisle: 'A', maxCapacity: 300, maxWeightKg: 500, description: 'Tủ kính bảo vệ - Đồng hồ thông minh & Smartwatch' },
-        { code: 'A06', zone: ZoneType.HIGH_VAL, aisle: 'A', maxCapacity: 300, maxWeightKg: 500, description: 'Kệ khóa từ - Máy đọc sách & Thiết bị VR' },
+        // --- KHU NHẶT HÀNG NHANH (ZONE-HIGH-VAL) ---
+        // Kệ A1 (Flagship Smartphone, Tablet)
+        { code: 'A01', rack: 'Kệ A1', shelfLevel: 1, aisle: 'A', zone: ZoneType.HIGH_VAL, maxCapacity: 300, maxWeightKg: 500, description: 'Tầng 1 (Sát sàn) - Flagship iPhone 15 Pro Max & Galaxy S24 Ultra' },
+        { code: 'A02', rack: 'Kệ A1', shelfLevel: 2, aisle: 'A', zone: ZoneType.HIGH_VAL, maxCapacity: 300, maxWeightKg: 500, description: 'Tầng 2 (Tầm mắt) - Smartphone cận cao cấp & Đồng hồ thông minh' },
+        { code: 'A03', rack: 'Kệ A1', shelfLevel: 3, aisle: 'A', zone: ZoneType.HIGH_VAL, maxCapacity: 300, maxWeightKg: 400, description: 'Tầng 3 (Trên cao) - iPad Pro, Galaxy Tab & Máy bay Drone' },
+        // Kệ A2 (Laptop Gaming, MacBook)
+        { code: 'A04', rack: 'Kệ A2', shelfLevel: 1, aisle: 'A', zone: ZoneType.HIGH_VAL, maxCapacity: 250, maxWeightKg: 600, description: 'Tầng 1 (Sát sàn) - Laptop Gaming ASUS ROG, Acer Predator' },
+        { code: 'A05', rack: 'Kệ A2', shelfLevel: 2, aisle: 'A', zone: ZoneType.HIGH_VAL, maxCapacity: 250, maxWeightKg: 500, description: 'Tầng 2 (Tầm mắt) - MacBook Pro, MacBook Air & Màn hình đồ họa' },
+        { code: 'A06', rack: 'Kệ A2', shelfLevel: 3, aisle: 'A', zone: ZoneType.HIGH_VAL, maxCapacity: 300, maxWeightKg: 400, description: 'Tầng 3 (Trên cao) - Loa di động cao cấp & Thiết bị VR' },
 
-        // Dãy B: ZONE-LARGE-APPLIANCE (Khu Điện Tử Cỡ Lớn: Smart TV, Loa, Máy chiếu) - 8 Kệ (4 Trái, 4 Phải)
-        { code: 'B01', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Pallet tầng trệt - Smart TV 65-85 inch' },
-        { code: 'B02', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Pallet tầng trệt - Loa Soundbar & Ampli lớn' },
-        { code: 'B03', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Kệ khung thép chịu tải - Màn hình đồ họa cỡ lớn' },
-        { code: 'B04', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Kệ khung thép chịu tải - Dàn âm thanh gia đình' },
-        { code: 'B05', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Pallet tầng trệt - Máy chiếu & Màn chiếu công nghiệp' },
-        { code: 'B06', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Kệ chịu tải lớn - Tủ lạnh mini & Máy lọc không khí' },
-        { code: 'B07', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Kệ khung thép - Ghế massage & Thiết bị tập thông minh' },
-        { code: 'B08', zone: ZoneType.LARGE_APPLIANCE, aisle: 'B', maxCapacity: 100, maxWeightKg: 2500, description: 'Pallet hạ tầng - Máy hút bụi lau nhà Robot' },
+        // --- KHU LUÂN CHUYỂN VỪA (ZONE-LARGE-APPLIANCE) ---
+        // Kệ B1 (Dãy Trái - Smart TV & Loa Cỡ Lớn)
+        { code: 'B01', rack: 'Kệ B1', shelfLevel: 1, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 80, maxWeightKg: 2500, description: 'Tầng 1 (Sát sàn) - Smart TV 75-85 inch & Dàn âm thanh lớn' },
+        { code: 'B02', rack: 'Kệ B1', shelfLevel: 2, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 120, maxWeightKg: 2000, description: 'Tầng 2 (Tầm mắt) - Smart TV 55-65 inch & Soundbar' },
+        { code: 'B03', rack: 'Kệ B1', shelfLevel: 3, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 150, maxWeightKg: 1500, description: 'Tầng 3 (Tầm trung) - Smart TV 43-50 inch & Máy chiếu 4K' },
+        { code: 'B04', rack: 'Kệ B1', shelfLevel: 4, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 200, maxWeightKg: 1000, description: 'Tầng 4 (Trên cao) - Loa bluetooth công suất vừa & Amply' },
+        // Kệ B2 (Dãy Phải - Điện Lạnh & Gia Dụng Cỡ Lớn)
+        { code: 'B05', rack: 'Kệ B2', shelfLevel: 1, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 60, maxWeightKg: 2500, description: 'Tầng 1 (Sát sàn) - Tủ lạnh Side-by-side & Máy giặt lồng ngang' },
+        { code: 'B06', rack: 'Kệ B2', shelfLevel: 2, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 80, maxWeightKg: 2000, description: 'Tầng 2 (Tầm mắt) - Tủ lạnh 2 cánh Inverter & Máy sấy quần áo' },
+        { code: 'B07', rack: 'Kệ B2', shelfLevel: 3, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 100, maxWeightKg: 1500, description: 'Tầng 3 (Tầm trung) - Máy giặt lồng đứng & Máy lọc nước RO' },
+        { code: 'B08', rack: 'Kệ B2', shelfLevel: 4, aisle: 'B', zone: ZoneType.LARGE_APPLIANCE, maxCapacity: 150, maxWeightKg: 1000, description: 'Tầng 4 (Trên cao) - Điều hòa không khí & Robot hút bụi' },
 
-        // Dãy C: ZONE-ACCESSORIES (Khu Linh Kiện & Phụ Kiện: Bàn phím, Chuột, RAM/SSD) - 4 Kệ
-        { code: 'C01', zone: ZoneType.ACCESSORIES, aisle: 'C', maxCapacity: 500, maxWeightKg: 800, description: 'Kệ đa tầng High-Bay - Bàn phím cơ & Chuột Gaming' },
-        { code: 'C02', zone: ZoneType.ACCESSORIES, aisle: 'C', maxCapacity: 500, maxWeightKg: 800, description: 'Kệ đa tầng High-Bay - Tai nghe Bluetooth & Củ sạc' },
-        { code: 'C03', zone: ZoneType.ACCESSORIES, aisle: 'C', maxCapacity: 500, maxWeightKg: 800, description: 'Kệ mật độ cao - Cáp sạc & Hub chuyển đổi' },
-        { code: 'C04', zone: ZoneType.ACCESSORIES, aisle: 'C', maxCapacity: 500, maxWeightKg: 800, description: 'Kệ mật độ cao - Ổ cứng di động & Ổ SSD/RAM' },
-
-        // Dãy D: ZONE-ESD-TEMP (Khu Chống Tĩnh Điện & Bán Dẫn: Bo mạch, Chipset, Cảm biến) - 2 Kệ
-        { code: 'D01', zone: ZoneType.ESD_TEMP, aisle: 'D', maxCapacity: 200, maxWeightKg: 600, description: 'Phòng ESD kiểm soát độ ẩm - Chipset & CPU' },
-        { code: 'D02', zone: ZoneType.ESD_TEMP, aisle: 'D', maxCapacity: 200, maxWeightKg: 600, description: 'Phòng ESD kiểm soát nhiệt độ - Bo mạch chủ Mainboard' },
+        // --- KHU MẬT ĐỘ CAO (ZONE-ACCESSORIES) ---
+        // Kệ C (Phụ Kiện Bán Nhanh & Linh Kiện Đa Tầng)
+        { code: 'C01', rack: 'Kệ C', shelfLevel: 1, aisle: 'C', zone: ZoneType.ACCESSORIES, maxCapacity: 500, maxWeightKg: 800, description: 'Tầng 1 (Sát sàn) - Cáp sạc bọc dù, hub chuyển đổi & phụ kiện cồng kềnh' },
+        { code: 'C02', rack: 'Kệ C', shelfLevel: 2, aisle: 'C', zone: ZoneType.ACCESSORIES, maxCapacity: 600, maxWeightKg: 600, description: 'Tầng 2 (Tầm mắt) - Củ sạc nhanh GaN, pin dự phòng & sạc MagSafe' },
+        { code: 'C03', rack: 'Kệ C', shelfLevel: 3, aisle: 'C', zone: ZoneType.ACCESSORIES, maxCapacity: 700, maxWeightKg: 500, description: 'Tầng 3 (Tầm trung) - Tai nghe không dây True Wireless & Ốp lưng' },
+        { code: 'C04', rack: 'Kệ C', shelfLevel: 4, aisle: 'C', zone: ZoneType.ACCESSORIES, maxCapacity: 600, maxWeightKg: 500, description: 'Tầng 4 (Trên cao) - Chuột không dây, bàn phím cơ & USB/SSD' },
+        // Kệ D (Kỹ Thuật, Thẩm Định Đổi Trả 30 Ngày & Hàng Bảo Hành - đặt trong Khu Mật Độ Cao)
+        { code: 'D01', rack: 'Kệ D', shelfLevel: 1, aisle: 'D', zone: ZoneType.ACCESSORIES, maxCapacity: 150, maxWeightKg: 500, description: 'Tầng 1 (Bàn kỹ thuật) - Trạm thẩm định kiểm tra máy đổi trả 30 ngày' },
+        { code: 'D02', rack: 'Kệ D', shelfLevel: 2, aisle: 'D', zone: ZoneType.ACCESSORIES, maxCapacity: 200, maxWeightKg: 500, description: 'Tầng 2 (Kệ an toàn) - Lưu trữ máy chờ gửi hãng bảo hành' },
+        { code: 'D03', rack: 'Kệ D', shelfLevel: 3, aisle: 'D', zone: ZoneType.ACCESSORIES, maxCapacity: 200, maxWeightKg: 500, description: 'Tầng 3 (Kệ Open-Box) - Hàng mở hộp, máy trưng bày & thanh lý' },
       ];
 
-      const existingLocs = await this.locationRepository.find({ order: { createdAt: 'ASC' } });
-
-      for (let i = 0; i < locationsToSeed.length; i++) {
-        const target = locationsToSeed[i];
-        if (existingLocs[i]) {
-          await this.locationRepository.update(existingLocs[i].id, target);
+      for (const target of locationsToSeed) {
+        const existing = await this.locationRepository.findOne({ where: { code: target.code } });
+        if (existing) {
+          await this.locationRepository.update(existing.id, {
+            zone: target.zone,
+            aisle: target.aisle,
+            rack: target.rack,
+            shelfLevel: target.shelfLevel,
+            maxCapacity: target.maxCapacity,
+            maxWeightKg: target.maxWeightKg,
+            description: target.description,
+          });
         } else {
           await this.locationRepository.save(this.locationRepository.create(target));
         }
       }
 
-      // If leftover extra locations exist, attempt delete
-      if (existingLocs.length > locationsToSeed.length) {
-        for (let i = locationsToSeed.length; i < existingLocs.length; i++) {
-          await this.locationRepository.delete(existingLocs[i].id).catch(() => {});
-        }
-      }
-
-      this.logger.log('Successfully updated & seeded 20 Electronics WMS locations in-place.');
+      this.logger.log('Successfully updated & seeded 21 Electronics WMS shelf levels across 6 racks in 3 zones in-place.');
     } catch (err: any) {
       this.logger.warn(`Failed to seed warehouse locations: ${err.message}`);
     }
@@ -111,13 +117,19 @@ export class StockService implements OnModuleInit {
       const locInventories = inventories.filter(i => i.location === loc.code || i.locationId === loc.id);
       const currentItemsCount = locInventories.reduce((sum, i) => sum + (i.currentQuantity || 0), 0);
       
-      const items = locInventories.map(i => ({
-        inventoryId: i.id,
-        productId: i.productId,
-        productName: productMap.get(i.productId)?.name || 'Unknown Product',
-        productSku: productMap.get(i.productId)?.sku || 'SKU',
-        quantity: i.currentQuantity,
-      })).filter(item => item.quantity > 0);
+      const items = locInventories.map(i => {
+        const prod = productMap.get(i.productId);
+        return {
+          inventoryId: i.id,
+          productId: i.productId,
+          productName: prod?.name || 'Unknown Product',
+          productSku: prod?.sku || 'SKU',
+          quantity: i.currentQuantity,
+          price: prod?.price ? Number(prod.price) : 0,
+          category: prod?.category || '',
+          imageUrl: prod?.imageUrl || null,
+        };
+      }).filter(item => item.quantity > 0);
 
       const occupancyRate = loc.maxCapacity > 0 ? Math.min(100, Math.round((currentItemsCount / loc.maxCapacity) * 100)) : 0;
       const remainingCapacity = Math.max(0, loc.maxCapacity - currentItemsCount);
@@ -173,41 +185,81 @@ export class StockService implements OnModuleInit {
     return savedUpdate;
   }
 
-  // Thuật toán Gợi ý Vị trí Cất hàng Kho Thiết Bị Điện Tử (Smart Electronics Putaway)
+  // Thuật toán Gợi ý Vị trí Cất hàng Kho Bán Lẻ Điện Máy (TGDD & ĐMX Smart Putaway)
   async suggestPutaway(productId: string, quantity: number) {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
+    let product: Product | null = null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId);
+    if (isUuid) {
+      product = await this.productRepository.findOne({ where: { id: productId } });
+    } else {
+      product = await this.productRepository.findOne({ where: { sku: productId } });
+    }
     const locations = await this.getAllLocationsWithOccupancy();
 
-    // Lựa chọn Zone ưu tiên dựa trên chủng loại thiết bị điện tử
+    // Lựa chọn Zone & Kệ ưu tiên dựa trên mô hình phân khu kho Điện Máy (TGDD & ĐMX)
     let targetZone = ZoneType.ACCESSORIES;
+    let preferredRack: string | null = null;
+
     if (product) {
-      const name = product.name.toLowerCase();
+      const name = (product.name || '').toLowerCase();
       const cat = (product.category || '').toLowerCase();
-      if (name.includes('iphone') || name.includes('macbook') || name.includes('laptop') || name.includes('ipad') || name.includes('drone') || name.includes('camera') || name.includes('điện thoại')) {
-        targetZone = ZoneType.HIGH_VAL; // Dãy A (Khu Hàng Giá Trị Cao)
-      } else if (name.includes('tv') || name.includes('tivi') || name.includes('màn hình') || name.includes('loa') || name.includes('âm thanh') || cat.includes('thiết bị lớn')) {
-        targetZone = ZoneType.LARGE_APPLIANCE; // Dãy B (Khu Điện Tử Cỡ Lớn)
-      } else if (name.includes('chip') || name.includes('mainboard') || name.includes('bo mạch') || name.includes('cảm biến') || name.includes('vi mạch')) {
-        targetZone = ZoneType.ESD_TEMP; // Dãy D (Khu Chống Tĩnh Điện & Bán Dẫn)
+
+      // 1. Kiểm tra hàng đổi trả / bảo hành / máy cũ / open-box -> Kệ D trong Khu Mật Độ Cao
+      if (
+        name.includes('đổi trả') || name.includes('bảo hành') || name.includes('open-box') || 
+        name.includes('trưng bày') || name.includes('mở hộp') || name.includes('cũ') || 
+        name.includes('rma') || name.includes('lỗi') || cat.includes('đổi trả') || cat.includes('bảo hành') || cat.includes('rma')
+      ) {
+        targetZone = ZoneType.ACCESSORIES;
+        preferredRack = 'Kệ D';
+      } else if (
+        name.includes('iphone') || name.includes('macbook') || name.includes('laptop') || 
+        name.includes('ipad') || name.includes('galaxy') || name.includes('watch') || 
+        name.includes('smartphone') || name.includes('điện thoại') || name.includes('tablet') || 
+        name.includes('camera') || name.includes('drone') || name.includes('flycam') ||
+        name.includes('redmi') || name.includes('xiaomi') || name.includes('oppo') || name.includes('vivo') ||
+        cat.includes('điện thoại') || cat.includes('smartphone') || cat.includes('phone') ||
+        cat.includes('laptop') || cat.includes('máy tính bảng') || cat.includes('tablet') || cat.includes('đồng hồ') || cat.includes('watch')
+      ) {
+        targetZone = ZoneType.HIGH_VAL; // Khu Nhặt Hàng Nhanh (Kệ A1, Kệ A2)
+      } else if (
+        name.includes('tv') || name.includes('tivi') || name.includes('tủ lạnh') || 
+        name.includes('máy giặt') || name.includes('máy sấy') || name.includes('điều hòa') || 
+        name.includes('máy lạnh') || name.includes('lọc nước') || name.includes('loa') || 
+        name.includes('soundbar') || name.includes('ampli') || name.includes('amp') ||
+        name.includes('dàn âm thanh') || name.includes('máy rửa') || name.includes('màn hình') ||
+        cat.includes('tivi') || cat.includes('tv') || cat.includes('điện máy') || cat.includes('điện lạnh') ||
+        cat.includes('gia dụng') || cat.includes('âm thanh') || cat.includes('audio') || cat.includes('giải trí')
+      ) {
+        targetZone = ZoneType.LARGE_APPLIANCE; // Khu Luân Chuyển Vừa (Kệ B1, Kệ B2)
+      } else {
+        targetZone = ZoneType.ACCESSORIES; // Khu Mật Độ Cao (Kệ C)
+        preferredRack = 'Kệ C';
       }
     }
 
-    // Tìm kệ còn đủ sức chứa trong Zone ưu tiên
-    let candidate = locations.find(l => l.zone === targetZone && (l.maxCapacity - l.currentItemsCount) >= quantity && l.status === LocationStatus.ACTIVE);
+    // Tìm kệ còn đủ sức chứa: ưu tiên Kệ cụ thể (nếu có), rồi Zone ưu tiên, rồi bất kỳ kệ nào còn trống
+    let candidate = preferredRack
+      ? locations.find(l => l.rack === preferredRack && (l.maxCapacity - l.currentItemsCount) >= quantity && l.status === LocationStatus.ACTIVE)
+      : null;
+
+    if (!candidate) {
+      candidate = locations.find(l => l.zone === targetZone && (l.maxCapacity - l.currentItemsCount) >= quantity && l.status === LocationStatus.ACTIVE);
+    }
     
-    // Nếu Zone ưu tiên hết chỗ, chọn Kệ bất kỳ còn trống
     if (!candidate) {
       candidate = locations.find(l => (l.maxCapacity - l.currentItemsCount) >= quantity && l.status === LocationStatus.ACTIVE);
     }
 
     const zoneNames: Record<string, string> = {
-      [ZoneType.HIGH_VAL]: 'Khu Hàng Giá Trị Cao',
-      [ZoneType.LARGE_APPLIANCE]: 'Khu Điện Tử Cỡ Lớn',
-      [ZoneType.ACCESSORIES]: 'Khu Linh Kiện & Phụ Kiện',
-      [ZoneType.ESD_TEMP]: 'Khu Chống Tĩnh Điện ESD',
+      [ZoneType.HIGH_VAL]: 'Khu Nhặt Hàng Nhanh (Công Nghệ Giá Trị Cao)',
+      [ZoneType.LARGE_APPLIANCE]: 'Khu Luân Chuyển Vừa (Điện Máy & Điện Lạnh Cỡ Lớn)',
+      [ZoneType.ACCESSORIES]: 'Khu Mật Độ Cao (Phụ Kiện & Kỹ Thuật)',
+      'ZONE-SERVICE-RMA': 'Khu Mật Độ Cao (Phụ Kiện & Kỹ Thuật)',
+      'ZONE-ESD-TEMP': 'Khu Mật Độ Cao (Phụ Kiện & Kỹ Thuật)',
     };
 
-    const zoneLabel = candidate ? (zoneNames[candidate.zone] || candidate.zone) : 'Khu Linh Kiện & Phụ Kiện';
+    const zoneLabel = candidate ? (zoneNames[candidate.zone] || candidate.zone) : 'Khu Mật Độ Cao (Phụ Kiện & Kỹ Thuật)';
 
     return {
       productId,
@@ -215,9 +267,11 @@ export class StockService implements OnModuleInit {
       suggestedLocation: candidate ? candidate.code : 'C01',
       zone: candidate ? candidate.zone : ZoneType.ACCESSORIES,
       zoneName: zoneLabel,
+      rack: candidate?.rack || 'Kệ C',
+      shelfLevel: candidate?.shelfLevel || 1,
       reason: candidate 
-        ? `Đề xuất cất vào Kệ ${candidate.aisle} - Tầng [${candidate.code}] (${zoneLabel}) vì còn trống ${candidate.maxCapacity - candidate.currentItemsCount} vị trí.`
-        : 'Sử dụng Tầng phụ kiện mặc định C01 do các tầng chuyên dụng khác đã đầy.',
+        ? `Đề xuất cất vào ${candidate.rack} - Tầng ${candidate.shelfLevel} [${candidate.code}] (${zoneLabel}) vì còn trống ${candidate.maxCapacity - candidate.currentItemsCount} vị trí.`
+        : 'Sử dụng Tầng mặc định Kệ C - Tầng 1 [C01] do các tầng chuyên dụng khác đã đầy.',
     };
   }
 
@@ -243,14 +297,16 @@ export class StockService implements OnModuleInit {
   }
 
   async createLocation(dto: Partial<Location>): Promise<Location> {
-    if (!dto.code) throw new RpcException('Vui lòng nhập Mã Kệ kho (ví dụ: A07, B09...).');
+    if (!dto.code) throw new RpcException('Vui lòng nhập Mã Tầng kệ kho (ví dụ: A1-L4, B1-L4...).');
     const existing = await this.locationRepository.findOne({ where: { code: dto.code } });
-    if (existing) throw new RpcException(`Mã kệ [${dto.code}] đã tồn tại trong hệ thống.`);
+    if (existing) throw new RpcException(`Mã vị trí [${dto.code}] đã tồn tại trong hệ thống.`);
 
     const newLoc = this.locationRepository.create({
       code: dto.code,
       zone: dto.zone || ZoneType.ACCESSORIES,
       aisle: dto.aisle || `Dãy ${dto.code[0]?.toUpperCase() || 'A'}`,
+      rack: dto.rack || `Kệ ${dto.code.split('-')[0] || 'A1'}`,
+      shelfLevel: Number(dto.shelfLevel) || 1,
       maxCapacity: Number(dto.maxCapacity) || 300,
       maxWeightKg: Number(dto.maxWeightKg) || 500,
       status: dto.status || LocationStatus.ACTIVE,
@@ -262,15 +318,17 @@ export class StockService implements OnModuleInit {
 
   async updateLocation(id: string, dto: Partial<Location>): Promise<Location> {
     const loc = await this.locationRepository.findOne({ where: { id } });
-    if (!loc) throw new RpcException('Không tìm thấy kệ kho.');
+    if (!loc) throw new RpcException('Không tìm thấy vị trí tầng kho.');
 
     if (dto.code && dto.code !== loc.code) {
       const existing = await this.locationRepository.findOne({ where: { code: dto.code } });
-      if (existing) throw new RpcException(`Mã kệ [${dto.code}] đã tồn tại trong hệ thống.`);
+      if (existing) throw new RpcException(`Mã vị trí [${dto.code}] đã tồn tại trong hệ thống.`);
       loc.code = dto.code;
     }
     if (dto.zone) loc.zone = dto.zone;
     if (dto.aisle) loc.aisle = dto.aisle;
+    if (dto.rack) loc.rack = dto.rack;
+    if (dto.shelfLevel !== undefined) loc.shelfLevel = Number(dto.shelfLevel);
     if (dto.maxCapacity !== undefined) loc.maxCapacity = Number(dto.maxCapacity);
     if (dto.maxWeightKg !== undefined) loc.maxWeightKg = Number(dto.maxWeightKg);
     if (dto.status) loc.status = dto.status;
@@ -295,9 +353,7 @@ export class StockService implements OnModuleInit {
 
   private async estimateAnnualDemand(productId: string): Promise<number> {
     try {
-      const result = await firstValueFrom(
-        this.transactionClient.send('transaction.findByProduct', { productId, page: 1, limit: 100000 }),
-      );
+      const result = await this.transactionsService.findByProduct(productId, 1, 100000);
       const transactions = result?.data || [];
       const outbound = transactions.filter((t) => t.type === 'OUTBOUND' && t.status === 'COMPLETED');
       if (outbound.length === 0) {
@@ -308,7 +364,7 @@ export class StockService implements OnModuleInit {
       const spanDays = Math.max(1, (Date.now() - Math.min(...timestamps)) / 86400000);
       return Math.max(1, (totalQty / spanDays) * 365);
     } catch (e: any) {
-      this.logger.warn(`Could not reach Transaction Service to estimate demand for ${productId}: ${e?.message || e}`);
+      this.logger.warn(`Could not reach TransactionsService to estimate demand for ${productId}: ${e?.message || e}`);
       return DEFAULT_ANNUAL_DEMAND;
     }
   }
@@ -365,9 +421,7 @@ export class StockService implements OnModuleInit {
     // 2. Hàng đang trên đường về (Inbound pending)
     let inboundStock = 0;
     try {
-      const txResult = await firstValueFrom(
-        this.transactionClient.send('transaction.findByProduct', { productId, page: 1, limit: 100 }),
-      );
+      const txResult = await this.transactionsService.findByProduct(productId, 1, 100);
       const transactions = txResult?.data || [];
       const inboundPending = transactions.filter((t: any) => t.type === 'INBOUND' && t.status === 'PENDING');
       inboundStock = inboundPending.reduce((sum: number, t: any) => sum + (Number(t.quantity) || 0), 0);
