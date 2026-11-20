@@ -7,3 +7,4 @@ xgboost
 statsmodels
 requests
 python-dotenv
+psycopg2-binary

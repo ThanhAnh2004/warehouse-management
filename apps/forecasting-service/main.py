@@ -29,33 +29,23 @@ app = FastAPI(
     version="2.1.0-global",
 )
 
-DATA_PROCESSING_SERVICE_HOST = os.getenv('DATA_PROCESSING_SERVICE_HOST', 'localhost')
-DATA_PROCESSING_SERVICE_PORT = os.getenv('DATA_PROCESSING_SERVICE_PORT', '8005')
-DATA_PROCESSING_SERVICE_URL = f"http://{DATA_PROCESSING_SERVICE_HOST}:{DATA_PROCESSING_SERVICE_PORT}"
+from core.data_cleaning import (
+    process_product_data,
+    process_all_products,
+    get_quality_overview,
+)
 
 DEFAULT_ANNUAL_DEMAND = 260.0
 
 
 def _fetch_cleaned_series(product_id: str, lookback_days: int = 730) -> dict:
-    """Lấy chuỗi OUTBOUND đã làm sạch từ Data Processing Service cho 1 sản phẩm."""
-    resp = requests.get(
-        f"{DATA_PROCESSING_SERVICE_URL}/process/{product_id}",
-        params={"lookback_days": lookback_days},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    """Lấy chuỗi OUTBOUND đã làm sạch trực tiếp từ module Data Cleaning (in-memory)."""
+    return process_product_data(product_id, lookback_days)
 
 
 def _fetch_all_cleaned_products(lookback_days: int = 730) -> dict:
-    """Lấy dữ liệu đã làm sạch của TẤT CẢ các sản phẩm từ Data Processing Service."""
-    resp = requests.get(
-        f"{DATA_PROCESSING_SERVICE_URL}/process-all",
-        params={"lookback_days": lookback_days},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    """Lấy dữ liệu đã làm sạch của TẤT CẢ các sản phẩm trực tiếp từ module Data Cleaning."""
+    return process_all_products(lookback_days)
 
 
 @app.on_event("startup")
@@ -81,6 +71,24 @@ def health():
         "trainedProductsCount": len(forecaster.metadata.get("pid_to_code", {})),
         "globalMetrics": forecaster.evaluation_metrics,
     }
+
+
+@app.get("/quality/overview")
+def quality_overview(lookback_days: int = 730):
+    """Tổng quan chất lượng dữ liệu làm sạch toàn kho (Data Preprocessing Quality Overview)."""
+    return get_quality_overview(lookback_days)
+
+
+@app.get("/process/{product_id}")
+def api_process_product(product_id: str, lookback_days: int = 730):
+    """API tiền xử lý & làm sạch chuỗi thời gian cho 1 sản phẩm."""
+    return process_product_data(product_id, lookback_days)
+
+
+@app.get("/process-all")
+def api_process_all(lookback_days: int = 730):
+    """API tiền xử lý & làm sạch chuỗi thời gian cho toàn bộ sản phẩm."""
+    return process_all_products(lookback_days)
 
 
 @app.get("/model/info")

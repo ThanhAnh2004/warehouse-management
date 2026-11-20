@@ -46,13 +46,22 @@
         "tsConfigPath": "apps/notification-service/tsconfig.app.json"
       }
     },
-    "reporting-service": {
+    "order-service": {
       "type": "application",
-      "root": "apps/reporting-service",
+      "root": "apps/order-service",
       "entryFile": "main",
-      "sourceRoot": "apps/reporting-service/src",
+      "sourceRoot": "apps/order-service/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/reporting-service/tsconfig.app.json"
+        "tsConfigPath": "apps/order-service/tsconfig.app.json"
+      }
+    },
+    "supplier-service": {
+      "type": "application",
+      "root": "apps/supplier-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/supplier-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/supplier-service/tsconfig.app.json"
       }
     }
   }

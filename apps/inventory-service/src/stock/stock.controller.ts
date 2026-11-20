@@ -61,4 +61,29 @@ export class StockController {
   getUnallocatedProducts() {
     return this.stockService.getUnallocatedProducts();
   }
+
+  @MessagePattern('stock.reserve')
+  reserveStock(@Payload() data: { productId: string; quantity: number }) {
+    return this.stockService.reserveStock(data);
+  }
+
+  @MessagePattern('stock.release_reserve')
+  releaseReserve(@Payload() data: { productId: string; quantity: number }) {
+    return this.stockService.releaseReserve(data);
+  }
+
+  @MessagePattern('stock.deduct_reserved')
+  deductReservedStock(@Payload() data: { productId: string; quantity: number; orderNumber: string }) {
+    return this.stockService.deductReservedStock(data);
+  }
+
+  @MessagePattern('stock.receive_procurement')
+  receiveProcurementGoods(@Payload() data: { productId: string; quantity: number; poNumber: string; supplierName: string }) {
+    return this.stockService.receiveProcurementGoods(data);
+  }
+
+  @MessagePattern('stock.get_low_stock')
+  getLowStock() {
+    return this.stockService.getLowStockProducts();
+  }
 }

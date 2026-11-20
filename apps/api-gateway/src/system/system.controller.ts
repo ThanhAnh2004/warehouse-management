@@ -12,6 +12,8 @@ interface ServiceCheck {
   host: string;
   port: number;
   queue?: string;
+  note?: string;
+  description?: string;
 }
 
 @ApiTags('System')
@@ -70,18 +72,107 @@ export class SystemController {
     const mongoUri = cfg('MONGODB_URI_IDENTITY', '');
     const isMongoAtlas = mongoUri.includes('mongodb+srv://');
 
+    // Kafka Broker Check
+    const kafkaBroker = cfg('KAFKA_BROKER', 'warehouse_kafka:29092');
+    let kafkaHost = 'warehouse_kafka';
+    let kafkaPort = 29092;
+    if (kafkaBroker) {
+      const parts = kafkaBroker.split(':');
+      if (parts[0]) kafkaHost = parts[0];
+      if (parts[1]) kafkaPort = Number(parts[1]);
+    }
+
     const targets: ServiceCheck[] = [
-      { name: 'API Gateway', category: 'gateway', host: 'self', port: Number(cfg('API_GATEWAY_PORT', '8000')) },
-      { name: 'Identity & Auth Service', category: 'microservice', host: cfg('IDENTITY_SERVICE_HOST', 'localhost'), port: Number(cfg('IDENTITY_SERVICE_PORT', '8001')), queue: 'identity_queue' },
-      { name: 'Inventory & Transaction Service', category: 'microservice', host: cfg('INVENTORY_SERVICE_HOST', 'localhost'), port: Number(cfg('INVENTORY_SERVICE_PORT', '8002')), queue: 'inventory_queue' },
-      
-      { name: 'Notification Service', category: 'microservice', host: cfg('NOTIFICATION_SERVICE_HOST', 'localhost'), port: Number(cfg('NOTIFICATION_SERVICE_PORT', '3004')), queue: 'notification_queue' },
-      { name: 'Reporting Service', category: 'microservice', host: cfg('REPORTING_SERVICE_HOST', 'localhost'), port: Number(cfg('REPORTING_SERVICE_PORT', '3005')), queue: 'reporting_queue' },
-      { name: 'Forecasting Service', category: 'python', host: cfg('FORECASTING_SERVICE_HOST', 'localhost'), port: Number(cfg('FORECASTING_SERVICE_PORT', '8004')) },
-      { name: 'Data Processing Service', category: 'python', host: cfg('DATA_PROCESSING_SERVICE_HOST', 'localhost'), port: Number(cfg('DATA_PROCESSING_SERVICE_PORT', '8005')) },
-      { name: 'PostgreSQL', category: 'database', host: cfg('POSTGRES_HOST', 'localhost'), port: Number(cfg('POSTGRES_PORT', '5432')) },
-      { name: 'MongoDB', category: 'database', host: isMongoAtlas ? 'Atlas Cloud' : cfg('MONGODB_HOST', 'localhost'), port: Number(cfg('MONGODB_PORT', '27017')) },
-      { name: 'RabbitMQ', category: 'broker', host: rmqHost, port: rmqPort },
+      {
+        name: 'API Gateway',
+        category: 'gateway',
+        host: 'self',
+        port: Number(cfg('API_GATEWAY_PORT', '8000')),
+        description: 'Cổng điều hướng tập trung & API Documentation Swagger',
+      },
+      {
+        name: 'Identity Service',
+        category: 'microservice',
+        host: cfg('IDENTITY_SERVICE_HOST', 'localhost'),
+        port: Number(cfg('IDENTITY_SERVICE_PORT', '8001')),
+        queue: 'identity_queue',
+        note: 'Đã gộp Reporting Service',
+        description: 'Xác thực JWT, Phân quyền RBAC & Báo cáo thống kê toàn diện',
+      },
+      {
+        name: 'Inventory Service',
+        category: 'microservice',
+        host: cfg('INVENTORY_SERVICE_HOST', 'localhost'),
+        port: Number(cfg('INVENTORY_SERVICE_PORT', '8002')),
+        queue: 'inventory_queue',
+        note: 'Core WMS & Audit',
+        description: 'Quản lý danh mục sản phẩm, vị trí kệ kho & Sổ cái kiểm toán tự động',
+      },
+      {
+        name: 'Order Service',
+        category: 'microservice',
+        host: cfg('ORDER_SERVICE_HOST', 'localhost'),
+        port: Number(cfg('ORDER_SERVICE_PORT', '8006')),
+        queue: 'order_queue',
+        note: 'Service Mới - Cửa 02',
+        description: 'Điều phối bán hàng Saga Pattern, Lập phiếu soạn hàng & Xuất xưởng CỬA 02',
+      },
+      {
+        name: 'Supplier Service',
+        category: 'microservice',
+        host: cfg('SUPPLIER_SERVICE_HOST', cfg('PROCUREMENT_SERVICE_HOST', 'localhost')),
+        port: Number(cfg('PROCUREMENT_SERVICE_PORT', '8007')),
+        queue: 'procurement_queue',
+        note: 'Service Mới - Cửa 01',
+        description: 'Thu mua thông minh từ mạng lưới NCC, Nhập kho chính ngạch qua CỬA 01',
+      },
+      {
+        name: 'Notification Service',
+        category: 'microservice',
+        host: cfg('NOTIFICATION_SERVICE_HOST', 'localhost'),
+        port: Number(cfg('NOTIFICATION_SERVICE_PORT', '3004')),
+        queue: 'notification_queue',
+        note: 'Đa kênh & Cảnh báo',
+        description: 'Thông báo sự kiện thời gian thực qua WebSocket, Email & Cảnh báo thiếu hàng',
+      },
+      {
+        name: 'Forecasting Service',
+        category: 'python',
+        host: cfg('FORECASTING_SERVICE_HOST', 'localhost'),
+        port: Number(cfg('FORECASTING_SERVICE_PORT', '8004')),
+        note: 'Đã gộp Data Processing',
+        description: 'Dự báo nhu cầu AI (ROP/EOQ), phát hiện bất thường & Phân tích xu hướng',
+      },
+      {
+        name: 'PostgreSQL',
+        category: 'database',
+        host: cfg('POSTGRES_HOST', 'localhost'),
+        port: Number(cfg('POSTGRES_PORT', '5432')),
+        description: 'Cơ sở dữ liệu quan hệ lưu trữ Tồn kho, Thu mua, Đơn hàng & Sổ cái',
+      },
+      {
+        name: 'MongoDB',
+        category: 'database',
+        host: isMongoAtlas ? 'Atlas Cloud' : cfg('MONGODB_HOST', 'localhost'),
+        port: Number(cfg('MONGODB_PORT', '27017')),
+        description: 'Cơ sở dữ liệu tài liệu lưu trữ Người dùng, Phân quyền & Nhật ký thông báo',
+      },
+      {
+        name: 'RabbitMQ',
+        category: 'broker',
+        host: rmqHost,
+        port: rmqPort,
+        note: 'Message Bus & DLQ',
+        description: 'Hàng đợi tin nhắn AMQP điều phối bất đồng bộ & Xử lý sự cố Dead Letter Queue',
+      },
+      {
+        name: 'Apache Kafka',
+        category: 'broker',
+        host: kafkaHost,
+        port: kafkaPort,
+        note: 'Event Streaming',
+        description: 'Nền tảng truyền phát sự kiện phân tán (Event Streaming) hiệu năng cao',
+      },
     ];
 
     const results = await Promise.all(
@@ -94,6 +185,19 @@ export class SystemController {
         }
         if (t.name === 'RabbitMQ') {
           return { ...t, status: rmqCheck.up ? ('up' as const) : ('down' as const), latencyMs: rmqCheck.latencyMs };
+        }
+        if (t.name === 'Apache Kafka') {
+          let { up, latencyMs } = await this.checkTcp(t.host, t.port);
+          if (!up) {
+            const localCheck = await this.checkTcp('localhost', 9092);
+            if (localCheck.up) {
+              up = true;
+              latencyMs = localCheck.latencyMs;
+              t.host = 'localhost';
+              t.port = 9092;
+            }
+          }
+          return { ...t, status: up ? ('up' as const) : ('down' as const), latencyMs };
         }
         if (t.category === 'python') {
           let { up, latencyMs } = await this.checkHttp(`http://${t.host}:${t.port}/health`);
@@ -186,9 +290,10 @@ export class SystemController {
 
     const queuePairs = [
       { service: 'Identity Service', queue: 'identity_queue', dlq: 'identity_dlq' },
-      { service: 'Inventory & Transaction Service', queue: 'inventory_queue', dlq: 'inventory_dlq' },
+      { service: 'Inventory Service', queue: 'inventory_queue', dlq: 'inventory_dlq' },
       { service: 'Notification Service', queue: 'notification_queue', dlq: 'notification_dlq' },
-      { service: 'Reporting Service', queue: 'reporting_queue', dlq: 'reporting_dlq' },
+      { service: 'Order Service', queue: 'order_queue', dlq: 'order_dlq' },
+      { service: 'Supplier Service', queue: 'procurement_queue', dlq: 'procurement_dlq' },
     ];
 
     const monitoredQueues = queuePairs.map((pair) => {

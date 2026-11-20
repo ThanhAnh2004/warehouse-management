@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductsModule } from './products/products.module';
 import { StockModule } from './stock/stock.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { TransactionsModule } from './transactions/transactions.module';
     ProductsModule,
     StockModule,
     TransactionsModule,
+    ReportsModule,
   ],
   controllers: [InventoryServiceController],
   providers: [InventoryServiceService],

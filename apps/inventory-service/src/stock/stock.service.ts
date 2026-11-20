@@ -633,4 +633,137 @@ export class StockService implements OnModuleInit {
 
     return result;
   }
+
+  // --- Saga Order Fulfillment Support ---
+  async reserveStock(data: { productId: string; quantity: number }): Promise<{ success: boolean; locationCode?: string; zone?: string; message?: string }> {
+    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
+    if (!inv) {
+      return { success: false, message: 'Sản phẩm chưa có trong kho' };
+    }
+    const available = (inv.currentQuantity || 0) - (inv.reservedQuantity || 0);
+    if (available < data.quantity) {
+      return { success: false, message: `Không đủ tồn kho khả dụng (Yêu cầu: ${data.quantity}, Khả dụng: ${available})` };
+    }
+    inv.reservedQuantity = (inv.reservedQuantity || 0) + data.quantity;
+    await this.inventoryRepository.save(inv);
+
+    let zone = 'Khu Nhặt Hàng Nhanh';
+    if (inv.location) {
+      const loc = await this.locationRepository.findOne({ where: { code: inv.location } });
+      if (loc && loc.zone) {
+        zone = loc.zone === ZoneType.HIGH_VAL ? 'Khu Nhặt Hàng Nhanh' :
+               loc.zone === ZoneType.LARGE_APPLIANCE ? 'Khu Luân Chuyển Vừa' : 'Khu Mật Độ Cao';
+      }
+    }
+
+    return { success: true, locationCode: inv.location || 'A01', zone };
+  }
+
+  async releaseReserve(data: { productId: string; quantity: number }): Promise<{ success: boolean }> {
+    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
+    if (inv) {
+      inv.reservedQuantity = Math.max(0, (inv.reservedQuantity || 0) - data.quantity);
+      await this.inventoryRepository.save(inv);
+    }
+    return { success: true };
+  }
+
+  async deductReservedStock(data: { productId: string; quantity: number; orderNumber: string }): Promise<{ success: boolean }> {
+    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
+    if (inv) {
+      inv.currentQuantity = Math.max(0, (inv.currentQuantity || 0) - data.quantity);
+      inv.reservedQuantity = Math.max(0, (inv.reservedQuantity || 0) - data.quantity);
+      await this.inventoryRepository.save(inv);
+
+      try {
+        await this.transactionsService.create({
+          productId: data.productId,
+          type: 'OUTBOUND' as any,
+          quantity: data.quantity,
+          locationFrom: inv.location || 'A01',
+          locationTo: 'CỬA 02 - OUT',
+          note: `Xuất kho giao đơn hàng [${data.orderNumber}]`,
+        } as any);
+      } catch (e: any) {
+        this.logger.warn(`Không ghi được lịch sử giao dịch xuất kho: ${e?.message}`);
+      }
+    }
+    return { success: true };
+  }
+
+  // --- Procurement PO Receiving Support ---
+  async receiveProcurementGoods(data: { productId: string; quantity: number; poNumber: string; supplierName: string }): Promise<{ success: boolean; locationCode: string }> {
+    let inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
+    let locationCode = inv?.location || 'A01';
+
+    if (!inv) {
+      inv = this.inventoryRepository.create({
+        productId: data.productId,
+        location: locationCode,
+        currentQuantity: data.quantity,
+        reservedQuantity: 0,
+        createdBy: 'procurement',
+        updatedBy: 'procurement',
+      });
+    } else {
+      inv.currentQuantity = (inv.currentQuantity || 0) + data.quantity;
+    }
+    await this.inventoryRepository.save(inv);
+
+    try {
+      await this.transactionsService.create({
+        productId: data.productId,
+        type: 'INBOUND' as any,
+        quantity: data.quantity,
+        locationFrom: 'CỬA 01 - IN',
+        locationTo: locationCode,
+        note: `Nhập kho từ đơn mua hàng [${data.poNumber}] - NCC: ${data.supplierName}`,
+      } as any);
+    } catch (e: any) {
+      this.logger.warn(`Không ghi được lịch sử giao dịch nhập kho: ${e?.message}`);
+    }
+
+    return { success: true, locationCode };
+  }
+
+  async getLowStockProducts() {
+    const products = await this.productRepository.find();
+    const inventories = await this.inventoryRepository.find();
+    const stockMap = new Map<string, number>();
+    for (const inv of inventories) {
+      stockMap.set(inv.productId, (stockMap.get(inv.productId) || 0) + (inv.currentQuantity || 0));
+    }
+    const lowStock: any[] = [];
+    for (const prod of products) {
+      const currentQty = stockMap.get(prod.id) || 0;
+      const minLevel = prod.minStockLevel || 10;
+      if (currentQty <= minLevel) {
+        lowStock.push({
+          productId: prod.id,
+          sku: prod.sku,
+          name: prod.name,
+          category: prod.category,
+          currentQuantity: currentQty,
+          minStockLevel: minLevel,
+          price: Number(prod.price) || 0,
+        });
+      }
+    }
+    // If no low stock products found, return the 5 products with the lowest current stock
+    if (lowStock.length === 0 && products.length > 0) {
+      const sorted = products
+        .map(prod => ({
+          productId: prod.id,
+          sku: prod.sku,
+          name: prod.name,
+          category: prod.category,
+          currentQuantity: stockMap.get(prod.id) || 0,
+          minStockLevel: prod.minStockLevel || 10,
+          price: Number(prod.price) || 0,
+        }))
+        .sort((a, b) => a.currentQuantity - b.currentQuantity);
+      return sorted.slice(0, 5);
+    }
+    return lowStock;
+  }
 }
