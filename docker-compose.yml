@@ -54,7 +54,8 @@ services:
       - identity-service
       - inventory-service
       - notification-service
-      - reporting-service
+      - order-service
+      - supplier-service
     env_file: .env.docker
     volumes:
       - ./public/uploads:/app/public/uploads
@@ -90,6 +91,7 @@ services:
     env_file: .env.docker
     networks:
       - wms_network
+
   notification-service:
     build:
       context: .
@@ -105,40 +107,41 @@ services:
     networks:
       - wms_network
 
-  reporting-service:
+  order-service:
     build:
       context: .
       dockerfile: Dockerfile.nest
       args:
-        APP_NAME: reporting-service
-    container_name: warehouse_reporting_service
+        APP_NAME: order-service
+    container_name: warehouse_order_service
     ports:
-      - "3005:3005"
+      - "8006:8006"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       - inventory-service
-      - forecasting-service
     env_file: .env.docker
     networks:
       - wms_network
 
-  # Python Services - Tiền xử lý dữ liệu & AI Forecast
-  data-processing-service:
+  supplier-service:
     build:
-      context: ./apps/data-processing-service
-      dockerfile: Dockerfile
-    container_name: warehouse_data_processing_service
+      context: .
+      dockerfile: Dockerfile.nest
+      args:
+        APP_NAME: supplier-service
+    container_name: warehouse_supplier_service
     ports:
-      - "8005:8005"
+      - "8007:8007"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - inventory-service
     env_file: .env.docker
-    volumes:
-      - ./apps/data-processing-service:/app
     networks:
       - wms_network
 
+  # Python Service - AI Demand Forecasting & Data Processing (In-Memory Pipeline)
   forecasting-service:
     build:
       context: ./apps/forecasting-service
@@ -148,8 +151,6 @@ services:
       - "8004:8004"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      - data-processing-service
     env_file: .env.docker
     volumes:
       - ./apps/forecasting-service:/app
@@ -181,7 +182,6 @@ services:
       - api-gateway
       - frontend
       - forecasting-service
-      - data-processing-service
     networks:
       - wms_network
 
