@@ -22,16 +22,38 @@ import { ProcurementController } from './procurement.controller';
         name: 'INVENTORY_SERVICE',
         imports: [ConfigModule],
         inject: [ConfigService],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URI', 'amqp://guest:guest@localhost:5672')],
-            queue: configService.get<string>('RABBITMQ_INVENTORY_QUEUE', 'inventory_queue'),
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
+        useFactory: (configService: ConfigService) => {
+          const isRmq = configService.get<string>('MICROSERVICE_TRANSPORT') === 'rmq';
+          return isRmq
+            ? {
+                transport: Transport.RMQ,
+                options: {
+                  urls: [
+                    configService.get<string>(
+                      'RABBITMQ_URL',
+                      configService.get<string>('RABBITMQ_URI', 'amqp://localhost:5672'),
+                    ),
+                  ],
+                  queue: configService.get<string>('RABBITMQ_INVENTORY_QUEUE', 'inventory_queue'),
+                  queueOptions: {
+                    durable: true,
+                    deadLetterExchange: 'amq.direct',
+                    deadLetterRoutingKey: 'inventory_dlq',
+                  },
+                  socketOptions: {
+                    heartbeatIntervalInSeconds: 5,
+                    reconnectTimeInSeconds: 5,
+                  },
+                },
+              }
+            : {
+                transport: Transport.TCP,
+                options: {
+                  host: configService.get<string>('INVENTORY_SERVICE_HOST', 'localhost'),
+                  port: configService.get<number>('INVENTORY_SERVICE_PORT', 8002),
+                },
+              };
+        },
       },
     ]),
   ],

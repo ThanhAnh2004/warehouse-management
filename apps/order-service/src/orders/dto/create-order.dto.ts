@@ -14,6 +14,7 @@ export class CreateOrderDto {
   shippingAddress?: string;
   orderType?: OrderType;
   priority?: 'HIGH' | 'NORMAL';
+  shippingFee?: number;
   notes?: string;
   items: CreateOrderItemDto[];
 }

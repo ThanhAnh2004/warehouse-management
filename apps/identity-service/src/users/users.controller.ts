@@ -32,7 +32,7 @@ export class UsersController {
   }
 
   @MessagePattern('roles.update')
-  handleUpdateRole(@Payload() data: { name: string; updateData: { permissions?: string[]; description?: string } }) {
+  handleUpdateRole(@Payload() data: { name: string; updateData: { newName?: string; permissions?: string[]; description?: string } }) {
     return this.usersService.updateRole(data.name, data.updateData);
   }
 
@@ -42,12 +42,12 @@ export class UsersController {
   }
 
   @MessagePattern('roles.create')
-  handleCreateRole(@Payload() data: { name: string; description?: string }) {
+  handleCreateRole(@Payload() data: { name: string; description?: string; permissions?: string[] }) {
     return this.usersService.createRole(data);
   }
 
   @MessagePattern('roles.delete')
-  handleDeleteRole(@Payload() data: { name: string }) {
-    return this.usersService.deleteRole(data.name);
+  handleDeleteRole(@Payload() data: { name: string; reassignTo?: string }) {
+    return this.usersService.deleteRole(data.name, data.reassignTo);
   }
 }

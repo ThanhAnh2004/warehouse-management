@@ -10,6 +10,7 @@ import { UpdateStockDto } from './dto/update-stock.dto';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.service';
+import { TransactionType } from '../transactions/entities/transaction.entity';
 
 const DEFAULT_ORDERING_COST = 50000;
 const DEFAULT_HOLDING_COST_RATE = 0.2;
@@ -294,6 +295,123 @@ export class StockService implements OnModuleInit {
       success: true,
       message: `Đã chuyển thành công ${quantity} sản phẩm từ Tầng [${fromLocation}] sang Tầng [${toLocation}].`,
     };
+  }
+
+  // Phân bổ hàng từ Hàng Chờ Phân Kệ vào một vị trí tầng kệ cụ thể (ACID + 1 TRANSFER ledger)
+  async allocateFromQueue(dto: { productId: string; toLocation: string; quantity: number; createdBy?: string }) {
+    const qty = Math.floor(Number(dto.quantity));
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new RpcException('Số lượng cần phân kệ phải lớn hơn 0.');
+    }
+    if (!dto.productId || !dto.toLocation) {
+      throw new RpcException('Thiếu thông tin sản phẩm hoặc vị trí kệ đích.');
+    }
+
+    return await this.inventoryRepository.manager.transaction(async (manager) => {
+      const product = await manager.findOne(Product, { where: { id: dto.productId } });
+      if (!product) {
+        throw new RpcException('Không tìm thấy sản phẩm.');
+      }
+
+      const targetLoc = await manager.findOne(Location, { where: { code: dto.toLocation } });
+      if (!targetLoc) {
+        throw new RpcException(`Không tìm thấy vị trí kệ [${dto.toLocation}].`);
+      }
+
+      const targetInvs = await manager.find(Inventory, {
+        where: [{ location: targetLoc.code }, { locationId: targetLoc.id }],
+      });
+      const currentUsed = targetInvs.reduce((sum, i) => sum + (i.currentQuantity || 0), 0);
+      const remaining = Math.max(0, (targetLoc.maxCapacity || 0) - currentUsed);
+      if (targetLoc.maxCapacity > 0 && currentUsed + qty > targetLoc.maxCapacity) {
+        throw new RpcException(
+          `Kệ [${targetLoc.code}] chỉ còn trống ${remaining} chỗ, không đủ để xếp thêm ${qty} ${product.unit || 'sản phẩm'}.`,
+        );
+      }
+
+      const allLocations = await manager.find(Location);
+      const validLocCodes = new Set(allLocations.map((l) => l.code));
+      const pInventories = await manager.find(Inventory, { where: { productId: dto.productId } });
+
+      const unallocatedRows = pInventories
+        .filter((i) => !validLocCodes.has(i.location) && (i.currentQuantity || 0) > 0)
+        .sort((a, b) => {
+          if (a.location === 'DEFAULT_WAREHOUSE' && b.location !== 'DEFAULT_WAREHOUSE') return -1;
+          if (b.location === 'DEFAULT_WAREHOUSE' && a.location !== 'DEFAULT_WAREHOUSE') return 1;
+          return (b.currentQuantity || 0) - (a.currentQuantity || 0);
+        });
+
+      const totalUnallocatedRaw = unallocatedRows.reduce((sum, i) => sum + (i.currentQuantity || 0), 0);
+      const totalUnallocatedFree = unallocatedRows.reduce(
+        (sum, i) => sum + Math.max(0, (i.currentQuantity || 0) - (i.reservedQuantity || 0)),
+        0,
+      );
+
+      if (totalUnallocatedFree < qty) {
+        if (totalUnallocatedRaw >= qty) {
+          throw new RpcException(
+            `Sản phẩm [${product.name}] chỉ có ${totalUnallocatedFree} ${product.unit || 'sản phẩm'} khả dụng trong hàng chờ (phần còn lại đang được giữ chỗ cho đơn hàng).`,
+          );
+        }
+        throw new RpcException(
+          `Hàng chờ phân kệ của [${product.name}] chỉ còn ${totalUnallocatedFree} ${product.unit || 'sản phẩm'}, không đủ để xếp ${qty}.`,
+        );
+      }
+
+      let leftToDeduct = qty;
+      const sourceLabels: string[] = [];
+      for (const srcInv of unallocatedRows) {
+        if (leftToDeduct <= 0) break;
+        const freeQty = Math.max(0, (srcInv.currentQuantity || 0) - (srcInv.reservedQuantity || 0));
+        if (freeQty <= 0) continue;
+        const take = Math.min(leftToDeduct, freeQty);
+        srcInv.currentQuantity -= take;
+        leftToDeduct -= take;
+        sourceLabels.push(srcInv.location);
+        if (srcInv.currentQuantity === 0 && (srcInv.reservedQuantity || 0) === 0) {
+          await manager.remove(Inventory, srcInv);
+        } else {
+          await manager.save(Inventory, srcInv);
+        }
+      }
+
+      let targetInv = pInventories.find(
+        (i) => i.location === targetLoc.code || i.locationId === targetLoc.id,
+      );
+      if (!targetInv) {
+        targetInv = manager.create(Inventory, {
+          productId: dto.productId,
+          location: targetLoc.code,
+          locationId: targetLoc.id,
+          currentQuantity: qty,
+          reservedQuantity: 0,
+          createdBy: dto.createdBy || 'Quản trị viên',
+        });
+      } else {
+        targetInv.currentQuantity += qty;
+        targetInv.location = targetLoc.code;
+        targetInv.locationId = targetLoc.id;
+      }
+      await manager.save(Inventory, targetInv);
+
+      await this.transactionsService.create(
+        {
+          productId: dto.productId,
+          type: TransactionType.TRANSFER,
+          quantity: qty,
+          locationFrom: sourceLabels[0] || 'DEFAULT_WAREHOUSE',
+          locationTo: targetLoc.code,
+          createdBy: dto.createdBy || 'Quản trị viên',
+          note: `Phân kệ ${qty} ${product.unit || 'sản phẩm'} từ hàng chờ [${sourceLabels.join(', ')}] vào ${targetLoc.rack || targetLoc.code} - Tầng ${targetLoc.shelfLevel || 1} (${targetLoc.code})`,
+        },
+        { skipStockMutation: true, manager },
+      );
+
+      return {
+        success: true,
+        message: `Đã xếp ${qty} ${product.unit || 'sản phẩm'} [${product.name}] từ hàng chờ vào Kệ [${targetLoc.code}].`,
+      };
+    });
   }
 
   async createLocation(dto: Partial<Location>): Promise<Location> {
@@ -636,10 +754,13 @@ export class StockService implements OnModuleInit {
 
   // --- Saga Order Fulfillment Support ---
   async reserveStock(data: { productId: string; quantity: number }): Promise<{ success: boolean; locationCode?: string; zone?: string; message?: string }> {
-    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
-    if (!inv) {
+    const allInvs = await this.inventoryRepository.find({ where: { productId: data.productId } });
+    if (allInvs.length === 0) {
       return { success: false, message: 'Sản phẩm chưa có trong kho' };
     }
+    const inv =
+      allInvs.find((i) => (i.currentQuantity || 0) - (i.reservedQuantity || 0) >= data.quantity) ||
+      allInvs[0];
     const available = (inv.currentQuantity || 0) - (inv.reservedQuantity || 0);
     if (available < data.quantity) {
       return { success: false, message: `Không đủ tồn kho khả dụng (Yêu cầu: ${data.quantity}, Khả dụng: ${available})` };
@@ -660,7 +781,8 @@ export class StockService implements OnModuleInit {
   }
 
   async releaseReserve(data: { productId: string; quantity: number }): Promise<{ success: boolean }> {
-    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
+    const allInvs = await this.inventoryRepository.find({ where: { productId: data.productId } });
+    const inv = allInvs.find((i) => (i.reservedQuantity || 0) > 0) || allInvs[0];
     if (inv) {
       inv.reservedQuantity = Math.max(0, (inv.reservedQuantity || 0) - data.quantity);
       await this.inventoryRepository.save(inv);
@@ -669,59 +791,50 @@ export class StockService implements OnModuleInit {
   }
 
   async deductReservedStock(data: { productId: string; quantity: number; orderNumber: string }): Promise<{ success: boolean }> {
-    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
-    if (inv) {
-      inv.currentQuantity = Math.max(0, (inv.currentQuantity || 0) - data.quantity);
-      inv.reservedQuantity = Math.max(0, (inv.reservedQuantity || 0) - data.quantity);
-      await this.inventoryRepository.save(inv);
-
-      try {
-        await this.transactionsService.create({
-          productId: data.productId,
-          type: 'OUTBOUND' as any,
-          quantity: data.quantity,
-          locationFrom: inv.location || 'A01',
-          locationTo: 'CỬA 02 - OUT',
-          note: `Xuất kho giao đơn hàng [${data.orderNumber}]`,
-        } as any);
-      } catch (e: any) {
-        this.logger.warn(`Không ghi được lịch sử giao dịch xuất kho: ${e?.message}`);
-      }
+    const allInvs = await this.inventoryRepository.find({ where: { productId: data.productId } });
+    const inv =
+      allInvs.find((i) => (i.reservedQuantity || 0) >= data.quantity) ||
+      allInvs.find((i) => (i.reservedQuantity || 0) > 0) ||
+      allInvs[0];
+    if (!inv) {
+      throw new RpcException(`Không tìm thấy bản ghi tồn kho cho sản phẩm [${data.productId}]`);
     }
+
+    // Mutate currentQuantity, release reservedQuantity, and append OUTBOUND audit ledger atomically once inside TransactionsService
+    await this.transactionsService.create(
+      {
+        productId: data.productId,
+        type: TransactionType.OUTBOUND,
+        quantity: data.quantity,
+        locationFrom: inv.location || 'A01',
+        locationTo: 'CỬA 02 - OUT',
+        createdBy: 'order-saga',
+        note: `Xuất kho giao đơn hàng [${data.orderNumber}]`,
+      },
+      { releaseReservedQuantity: data.quantity },
+    );
+
     return { success: true };
   }
 
   // --- Procurement PO Receiving Support ---
-  async receiveProcurementGoods(data: { productId: string; quantity: number; poNumber: string; supplierName: string }): Promise<{ success: boolean; locationCode: string }> {
-    let inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
-    let locationCode = inv?.location || 'A01';
+  async receiveProcurementGoods(data: { productId: string; quantity: number; poNumber: string; supplierName: string; unitPrice?: number }): Promise<{ success: boolean; locationCode: string }> {
+    const inv = await this.inventoryRepository.findOne({ where: { productId: data.productId } });
+    const locationCode = inv?.location || 'A01';
 
-    if (!inv) {
-      inv = this.inventoryRepository.create({
+    // Delegate both ACID stock increment and INBOUND audit ledger creation once to TransactionsService
+    await this.transactionsService.create(
+      {
         productId: data.productId,
-        location: locationCode,
-        currentQuantity: data.quantity,
-        reservedQuantity: 0,
-        createdBy: 'procurement',
-        updatedBy: 'procurement',
-      });
-    } else {
-      inv.currentQuantity = (inv.currentQuantity || 0) + data.quantity;
-    }
-    await this.inventoryRepository.save(inv);
-
-    try {
-      await this.transactionsService.create({
-        productId: data.productId,
-        type: 'INBOUND' as any,
+        type: TransactionType.INBOUND,
         quantity: data.quantity,
         locationFrom: 'CỬA 01 - IN',
         locationTo: locationCode,
+        createdBy: 'procurement',
         note: `Nhập kho từ đơn mua hàng [${data.poNumber}] - NCC: ${data.supplierName}`,
-      } as any);
-    } catch (e: any) {
-      this.logger.warn(`Không ghi được lịch sử giao dịch nhập kho: ${e?.message}`);
-    }
+      },
+      data.unitPrice !== undefined ? { unitPrice: Number(data.unitPrice) } : undefined,
+    );
 
     return { success: true, locationCode };
   }

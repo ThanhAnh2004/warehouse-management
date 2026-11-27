@@ -16,6 +16,11 @@ export class NotificationController {
     return this.notificationService.getAlerts();
   }
 
+  @MessagePattern('notification.sync_live_low_stock')
+  async syncLiveLowStock(@Payload() payload: { lowStockItems?: any[] } = {}) {
+    return this.notificationService.syncLiveLowStock(payload?.lowStockItems || []);
+  }
+
   @MessagePattern('notification.mark_as_read')
   async markAsRead(@Payload() id: string) {
     return this.notificationService.markAsRead(id);

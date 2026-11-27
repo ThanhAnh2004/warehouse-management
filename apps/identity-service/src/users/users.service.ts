@@ -20,48 +20,76 @@ export class UsersService implements OnModuleInit {
 
   async seedPermissionsAndRoles() {
     const defaultPermissions = [
-      // 1. Quản lý Người dùng & Phân quyền (USERS)
-      { key: 'users:read', name: 'Xem Danh Sách Tài Khoản', description: 'Xem danh sách tài khoản thành viên trong hệ thống' },
-      { key: 'users:delete', name: 'Quản Lý & Xóa Tài Khoản', description: 'Tạo mới, phân quyền vai trò & xóa tài khoản người dùng' },
+      // 1. Tổng Quan (DASHBOARD)
+      { key: 'dashboard:read', name: 'Xem Trang Chủ Tổng Quan', description: 'Theo dõi KPI tổng hợp tồn kho, không gian phân khu và hàng sắp thiếu' },
 
-      // 2. Quản lý Sản phẩm (PRODUCTS)
-      { key: 'products:read', name: 'Xem Danh Mục Sản Phẩm', description: 'Xem danh sách & chi tiết thông số sản phẩm' },
-      { key: 'products:create', name: 'Thêm Sản Phẩm Mới', description: 'Thêm sản phẩm mới vào hệ thống danh mục điện máy' },
-      { key: 'products:update', name: 'Cập Nhật Sản Phẩm', description: 'Chỉnh sửa thông tin, giá bán & hình ảnh sản phẩm' },
+      // 2. Quản lý Danh Mục Sản Phẩm (PRODUCTS)
+      { key: 'products:read', name: 'Xem Danh Mục & Chi Tiết Sản Phẩm', description: 'Xem danh sách mặt hàng, giá bán và thông số kỹ thuật sản phẩm' },
+      { key: 'products:create', name: 'Thêm Sản Phẩm Mới', description: 'Khai báo sản phẩm mới vào hệ thống danh mục điện máy' },
+      { key: 'products:update', name: 'Cập Nhật Sản Phẩm & Ngưỡng Min', description: 'Chỉnh sửa thông tin, giá bán, hình ảnh & đồng bộ ngưỡng Min Stock' },
       { key: 'products:delete', name: 'Xóa Sản Phẩm Kho', description: 'Xóa sản phẩm khỏi danh mục hệ thống' },
 
-      // 3. Quản lý Tồn Kho (STOCK)
-      { key: 'stock:read', name: 'Xem Tồn Kho Thực Tế', description: 'Theo dõi số lượng tồn kho thời gian thực của các mặt hàng' },
-      { key: 'stock:update', name: 'Cập Nhật Tồn Kho', description: 'Thay đổi trực tiếp số lượng tồn kho của sản phẩm' },
+      // 3. Quản lý Tồn Kho Thực Tế (STOCK)
+      { key: 'stock:read', name: 'Xem Tồn Kho Thực Tế', description: 'Theo dõi số lượng tồn kho và mức cảnh báo thiếu hàng theo thời gian thực' },
+      { key: 'stock:update', name: 'Nhập Bổ Sung Nhanh Tồn Kho', description: 'Nhập bổ sung tồn kho nhanh từ danh sách hàng dưới ngưỡng Min & đề xuất EOQ' },
 
-      // 4. Kiểm Kê & Điều Chỉnh (ADJUSTMENTS)
-      { key: 'adjustments:read', name: 'Xem Báo Cáo Kiểm Kê', description: 'Xem lịch sử & chi tiết các phiếu kiểm kê điều chỉnh kho' },
-      { key: 'adjustments:create', name: 'Tạo Báo Cáo Kiểm Kê', description: 'Lập phiếu kiểm kê & điều chỉnh số lượng tồn kho thực tế' },
-      { key: 'adjustments:update', name: 'Sửa Báo Cáo Kiểm Kê', description: 'Chỉnh sửa thông tin báo cáo điều chỉnh kiểm kê' },
+      // 4. Sổ Cái Lịch Sử Giao Dịch Kho (TRANSACTIONS - AUDIT LEDGER)
+      { key: 'transactions:read', name: 'Xem Sổ Cái Lịch Sử Giao Dịch', description: 'Xem nhật ký tự động Nhập kho, Xuất kho, Điều chuyển kệ, Kiểm kê & Saga Trace' },
+      { key: 'transactions:export', name: 'Xuất Báo Cáo CSV Giao Dịch', description: 'Tải xuống file CSV nhật ký lịch sử giao dịch kho hàng' },
+
+      // 5. Kiểm Kê & Điều Chỉnh (ADJUSTMENTS)
+      { key: 'adjustments:read', name: 'Xem Báo Cáo Kiểm Kê', description: 'Xem lịch sử & chi tiết các phiếu kiểm kê, báo hỏng, thất thoát kho' },
+      { key: 'adjustments:create', name: 'Lập Phiếu Kiểm Kê & Báo Hỏng', description: 'Tạo biên bản kiểm kê thực tế, báo hỏng, thất thoát hoặc dôi dư hàng hóa' },
+      { key: 'adjustments:update', name: 'Sửa Báo Cáo Kiểm Kê', description: 'Chỉnh sửa số lượng hoặc ghi chú biên bản điều chỉnh kiểm kê' },
       { key: 'adjustments:delete', name: 'Xóa Báo Cáo Kiểm Kê', description: 'Xóa phiếu kiểm kê điều chỉnh khỏi hệ thống' },
 
-      // 5. Giao Dịch Kho (TRANSACTIONS)
-      { key: 'transactions:read', name: 'Xem Lịch Sử Giao Dịch', description: 'Xem nhật ký Nhập kho, Xuất kho, Điều chuyển kệ' },
-      { key: 'transactions:create', name: 'Tạo Giao Dịch Kho Mới', description: 'Lập đơn Nhập kho, Xuất kho & Điều chuyển vị trí kệ kho' },
+      // 6. Quản Lý Đơn Hàng & Soạn Hàng (ORDERS - CỬA 02)
+      { key: 'orders:read', name: 'Xem Danh Sách Đơn Hàng', description: 'Xem danh sách đơn bán hàng, điều chuyển & luồng điều phối Saga' },
+      { key: 'orders:create', name: 'Tạo Đơn Hàng Mới', description: 'Lập đơn hàng mới, tính phí ship và kích hoạt Saga giữ tồn kho' },
+      { key: 'orders:pick', name: 'Soạn Hàng & Quét Serial/IMEI', description: 'Lập phiếu Pick List, xác nhận nhặt hàng theo kệ & gắn Serial/IMEI' },
+      { key: 'orders:dispatch', name: 'Xuất Xưởng Đơn Hàng (Cửa 02)', description: 'Xác nhận xuất xưởng qua CỬA 02 - OUT và trừ tồn kho thực tế' },
 
-      // 6. Kệ Kho & Sơ Đồ Kho (LOCATIONS)
-      { key: 'locations:read', name: 'Xem Sơ Đồ Kệ Kho', description: 'Xem mặt bằng 2D, tỷ lệ lấp đầy & chi tiết 20 tầng kệ kho' },
-      { key: 'locations:create', name: 'Thêm Kệ Kho Mới', description: 'Khai báo thêm kệ kho mới vào mặt bằng' },
-      { key: 'locations:update', name: 'Cập Nhật Kệ Kho', description: 'Sửa tên kệ kho, mã kệ & sức chứa tối đa' },
+      // 7. Thu Mua & Nhà Cung Cấp (PROCUREMENT - CỬA 01)
+      { key: 'procurement:read', name: 'Xem Đơn Mua Hàng & Nhà Cung Cấp', description: 'Xem danh sách nhà cung ứng chính hãng & đơn đặt hàng PO' },
+      { key: 'procurement:create', name: 'Tạo Đơn Mua Hàng & Thêm NCC', description: 'Thêm nhà cung cấp mới và lập đơn đặt hàng PO gửi nhà phân phối' },
+      { key: 'procurement:receive', name: 'Tiếp Nhận Nhập Kho (Cửa 01)', description: 'Tiếp nhận hàng từ NCC qua CỬA 01 - IN và cộng tồn kho tự động' },
+
+      // 8. Kệ Kho & Sơ Đồ Kho (LOCATIONS)
+      { key: 'locations:read', name: 'Xem Sơ Đồ Kệ Kho & Danh Mục Kệ', description: 'Xem bản đồ 2D mặt bằng kho, tỷ lệ lấp đầy & chi tiết các tầng kệ' },
+      { key: 'locations:create', name: 'Thêm Kệ / Tầng Kho Mới', description: 'Khai báo thêm vị trí kệ kho mới vào mặt bằng' },
+      { key: 'locations:update', name: 'Cập Nhật Thông Tin Kệ Kho', description: 'Sửa phân khu, tên kệ kho & giới hạn sức chứa/tải trọng' },
       { key: 'locations:delete', name: 'Xóa Kệ Kho', description: 'Xóa vị trí kệ kho không còn sử dụng' },
-      { key: 'locations:allocate', name: 'AI Gợi Ý & Phân Hàng Vào Kệ', description: 'Phân hàng từ danh sách chờ vào tầng kệ & Sử dụng AI gợi ý cất hàng' },
+      { key: 'locations:allocate', name: 'AI Gợi Ý & Phân Hàng Lên Kệ', description: 'Sử dụng AI gợi ý vị trí cất hàng, xếp hàng lên kệ & chuyển tầng' },
 
-      // 7. Báo Cáo & Thống Kê (REPORTS & FORECAST)
-      { key: 'reports:read', name: 'Xem Báo Cáo & Thống Kê Chi Tiết', description: 'Xem biểu đồ biến động tháng, top bán chạy & top doanh thu' },
-      { key: 'reports:export', name: 'Xuất Báo Cáo Excel / CSV', description: 'Xuất dữ liệu báo cáo thống kê doanh thu & tồn kho ra file Excel' },
-      { key: 'forecast:read', name: 'Xem Dự Báo Nhu Cầu AI', description: 'Xem phân tích nhu cầu bằng AI & công thức EOQ' },
+      // 9. Báo Cáo & Thống Kê (REPORTS)
+      { key: 'reports:read', name: 'Xem Báo Cáo & Thống Kê Chi Tiết', description: 'Xem doanh số xuất kho, top bán chạy & biến động nhập xuất theo tháng' },
+      { key: 'reports:export', name: 'Xuất Báo Cáo Excel Tổng Hợp', description: 'Xuất dữ liệu báo cáo thống kê nhiều sheet ra file Excel (.xlsx)' },
 
-      // 8. Cảnh Báo & Giám Sát (ALERTS & SYSTEM)
-      { key: 'alerts:read', name: 'Xem Cảnh Báo Kho Hàng', description: 'Xem thông báo hết hàng & cảnh báo chạm ngưỡng an toàn' },
-      { key: 'system:read', name: 'Giám Sát Hệ Thống Microservices', description: 'Theo dõi CPU, RAM, Redis & log hoạt động server' },
+      // 10. Dự Báo Nhu Cầu & AI (FORECAST)
+      { key: 'forecast:read', name: 'Xem Dự Báo AI & Tối Ưu EOQ/ROP', description: 'Xem biểu đồ dự báo XGBoost, tính toán Safety Stock, ROP và EOQ' },
+
+      // 11. Cảnh Báo Kho Hàng (ALERTS)
+      { key: 'alerts:read', name: 'Xem Cảnh Báo Kho Hàng', description: 'Xem thông báo hết hàng, chạm ngưỡng an toàn Min/Max & đánh dấu đã đọc' },
+      { key: 'alerts:manage', name: 'Quản Lý & Xóa Cảnh Báo', description: 'Xóa nhật ký cảnh báo kho hàng sau khi đã xử lý' },
+
+      // 12. Quản lý Người dùng (USERS)
+      { key: 'users:read', name: 'Xem Danh Sách Tài Khoản', description: 'Xem danh sách tài khoản nhân sự và vai trò trong hệ thống' },
+      { key: 'users:create', name: 'Tạo Tài Khoản Mới', description: 'Khai báo tài khoản người dùng mới vào hệ thống' },
+      { key: 'users:update', name: 'Cập Nhật Tài Khoản', description: 'Chỉnh sửa thông tin thành viên và phân bổ vai trò' },
+      { key: 'users:delete', name: 'Xóa Tài Khoản', description: 'Xóa tài khoản người dùng khỏi hệ thống' },
+
+      // 13. Quản lý Vai trò & Phân quyền (ROLES)
+      { key: 'roles:read', name: 'Xem Vai Trò & Ma Trận Quyền', description: 'Xem danh sách vai trò và cấu hình quyền hạn tương ứng' },
+      { key: 'roles:manage', name: 'Quản Lý & Phân Bổ Quyền', description: 'Tạo/sửa/xóa vai trò và thiết lập ma trận phân quyền chi tiết' },
+
+      // 14. Giám Sát Hạ Tầng & Message Bus (SYSTEM)
+      { key: 'system:read', name: 'Giám Sát Hệ Thống Microservices', description: 'Theo dõi trạng thái các service, database và RabbitMQ/Kafka' },
+      { key: 'system:manage', name: 'Xử Lý Sự Cố Message Bus (DLQ)', description: 'Đẩy lại tin nhắn lỗi từ Dead Letter Queue & dọn dẹp hàng đợi' },
     ];
 
-    // Seed Permissions with updates
+    const allPermKeys = defaultPermissions.map(p => p.key);
+
+    // Seed Permissions with updates and remove obsolete keys
     for (const perm of defaultPermissions) {
       await this.permissionModel.findOneAndUpdate(
         { key: perm.key },
@@ -69,61 +97,74 @@ export class UsersService implements OnModuleInit {
         { upsert: true }
       ).exec();
     }
-
-    const allPermKeys = defaultPermissions.map(p => p.key);
+    await this.permissionModel.deleteMany({ key: { $nin: allPermKeys } }).exec();
+    await this.roleModel.updateMany({}, { $pull: { permissions: { $nin: allPermKeys } } }).exec();
+    await this.userModel.updateMany(
+      { permissions: { $exists: true, $ne: null } },
+      { $pull: { permissions: { $nin: allPermKeys } } }
+    ).exec();
 
     const defaultRoles = [
       {
         name: 'Admin',
-        description: 'System Administrator (Toàn quyền hệ thống)',
+        description: 'Quản Trị Viên Hệ Thống (Toàn quyền vận hành, nhân sự, RBAC & hạ tầng)',
         permissions: allPermKeys,
       },
       {
         name: 'Manager',
-        description: 'Warehouse Manager (Quản lý kho hàng & Báo cáo)',
+        description: 'Quản Lý Kho Hàng (Điều hành kho, thu mua, đơn hàng, báo cáo & nhân sự kho)',
         permissions: [
-          'users:read',
+          'dashboard:read',
           'products:read', 'products:create', 'products:update', 'products:delete',
           'stock:read', 'stock:update',
+          'transactions:read', 'transactions:export',
           'adjustments:read', 'adjustments:create', 'adjustments:update', 'adjustments:delete',
-          'transactions:read', 'transactions:create',
-          'locations:read', 'locations:create', 'locations:update', 'locations:allocate',
+          'orders:read', 'orders:create', 'orders:pick', 'orders:dispatch',
+          'procurement:read', 'procurement:create', 'procurement:receive',
+          'locations:read', 'locations:create', 'locations:update', 'locations:delete', 'locations:allocate',
           'reports:read', 'reports:export',
           'forecast:read',
-          'alerts:read'
+          'alerts:read', 'alerts:manage',
+          'users:read', 'users:create', 'users:update',
         ],
       },
       {
         name: 'Staff',
-        description: 'Warehouse Operator (Nhân viên vận hành kho)',
+        description: 'Nhân Viên Kho (Tiếp nhận Cửa 01, xếp kệ, soạn & xuất Cửa 02, kiểm kê thực tế)',
         permissions: [
-          'users:read',
           'products:read',
-          'stock:read', 'stock:update',
+          'stock:read',
+          'transactions:read',
           'adjustments:read', 'adjustments:create',
-          'transactions:read', 'transactions:create',
+          'orders:read', 'orders:pick', 'orders:dispatch',
+          'procurement:read', 'procurement:receive',
           'locations:read', 'locations:allocate',
-          'reports:read',
-          'alerts:read'
+          'alerts:read',
         ],
       },
     ];
 
-    // Seed Roles with description & permissions updates
-    for (const role of defaultRoles) {
+    // Seed Roles: always ensure Root Admin has isSystemAdmin & all permissions (preserving renamed role name); create Manager/Staff only on fresh install
+    const existingRolesCount = await this.roleModel.countDocuments().exec();
+    const rootAdminExisting = await this.roleModel
+      .findOne({ $or: [{ isSystemAdmin: true }, { name: 'Admin' }, { name: /^Quản trị viên$/i }] })
+      .exec();
+
+    if (!rootAdminExisting) {
+      await new this.roleModel({ ...defaultRoles[0], isSystemAdmin: true }).save();
+    } else {
+      await this.roleModel
+        .findOneAndUpdate(
+          { _id: rootAdminExisting._id },
+          { $set: { isSystemAdmin: true, permissions: allPermKeys } },
+        )
+        .exec();
+    }
+
+    for (const role of defaultRoles.slice(1)) {
       const exists = await this.roleModel.findOne({ name: role.name }).exec();
-      if (!exists) {
+      if (!exists && existingRolesCount <= 1) {
         await new this.roleModel(role).save();
-      } else {
-        // Automatically sync permissions for Admin and update description
-        const updateFields: any = { description: role.description };
-        if (role.name === 'Admin') {
-          updateFields.permissions = allPermKeys;
-        }
-        await this.roleModel.findOneAndUpdate(
-          { name: role.name },
-          { $set: updateFields }
-        ).exec();
       }
     }
 
@@ -131,13 +172,14 @@ export class UsersService implements OnModuleInit {
     const defaultPasswordHash = await bcrypt.hash('123456', 10);
 
     // 1. Seed default Admin user
+    const adminRoleName = rootAdminExisting?.name || 'Admin';
     const adminExists = await this.userModel.findOne({ email: 'admin@gmail.com' }).exec();
     if (!adminExists) {
       await new this.userModel({
         email: 'admin@gmail.com',
         password: defaultPasswordHash,
         fullname: 'System Administrator',
-        role: 'Admin',
+        role: adminRoleName,
         address: 'Tru so chinh Hà Nội',
         phone: '0908200401',
         gender: 'Male',
@@ -185,66 +227,148 @@ export class UsersService implements OnModuleInit {
   }
 
   async getRoles() {
-    return await this.roleModel.find().exec();
+    const [roles, counts] = await Promise.all([
+      this.roleModel.find().sort({ createdAt: 1 }).exec(),
+      this.userModel.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]).exec(),
+    ]);
+    const countMap: Record<string, number> = {};
+    for (const c of counts) {
+      if (c._id) countMap[c._id] = c.count;
+    }
+    return roles.map((r) => {
+      const obj: any = r.toObject ? r.toObject() : { ...r };
+      obj.userCount = countMap[obj.name] || 0;
+      return obj;
+    });
   }
 
-  async updateRole(name: string, updateData: { permissions?: string[]; description?: string }) {
+  private isRootAdminRole(roleObj: { name?: string; isSystemAdmin?: boolean } | null | undefined): boolean {
+    if (!roleObj) return false;
+    return Boolean(roleObj.isSystemAdmin) || /^(admin|quản trị viên)$/i.test((roleObj.name || '').trim());
+  }
+
+  async isRootAdminRoleName(roleName?: string): Promise<boolean> {
+    if (!roleName) return false;
+    if (/^(admin|quản trị viên)$/i.test(roleName.trim())) return true;
+    const roleObj = await this.roleModel.findOne({ name: roleName }).exec();
+    return Boolean(roleObj?.isSystemAdmin);
+  }
+
+  async updateRole(name: string, updateData: { newName?: string; permissions?: string[]; description?: string }) {
+    const existing = await this.roleModel.findOne({ name }).exec();
+    if (!existing) {
+      return { success: false, message: `Không tìm thấy vai trò "${name}".` };
+    }
+
+    const isRootAdmin = this.isRootAdminRole(existing);
     const update: any = {};
-    if (updateData.permissions !== undefined) update.permissions = updateData.permissions;
-    if (updateData.description !== undefined) update.description = updateData.description;
+    const targetName = updateData.newName !== undefined ? updateData.newName.trim() : name;
+
+    if (updateData.newName !== undefined && targetName !== name) {
+      if (!targetName) {
+        return { success: false, message: 'Tên vai trò mới không được để trống.' };
+      }
+      const conflict = await this.roleModel
+        .findOne({ name: { $regex: new RegExp(`^${targetName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, _id: { $ne: existing._id } })
+        .exec();
+      if (conflict) {
+        return { success: false, message: `Vai trò "${conflict.name}" đã tồn tại trong hệ thống.` };
+      }
+      update.name = targetName;
+    }
+
+    if (updateData.permissions !== undefined) {
+      if (isRootAdmin) {
+        return { success: false, message: 'Không thể sửa đổi quyền hạn của vai trò Quản trị viên hệ thống.' };
+      }
+      update.permissions = updateData.permissions;
+    }
+
+    if (updateData.description !== undefined) {
+      update.description = updateData.description.trim();
+    }
 
     const updatedRole = await this.roleModel.findOneAndUpdate(
-      { name },
+      { _id: existing._id },
       { $set: update },
       { new: true }
     ).exec();
 
-    // Khi Admin đổi quyền của Role, reset custom permissions override của các users thuộc role này
-    // để tất cả tài khoản gắn với vai trò đó tự động đồng bộ theo ma trận quyền mới nhất của Role!
-    if (updateData.permissions !== undefined) {
+    // Update user role references if renamed
+    if (update.name && update.name !== name) {
       await this.userModel.updateMany(
         { role: name },
-        { $unset: { permissions: "" } }
+        { $set: { role: update.name } }
       ).exec();
     }
 
-    return { success: !!updatedRole, data: updatedRole };
+    // Khi Admin đổi quyền của Role, reset custom permissions override của các users thuộc role này
+    if (updateData.permissions !== undefined) {
+      await this.userModel.updateMany(
+        { role: update.name || name },
+        { $unset: { permissions: '' } }
+      ).exec();
+    }
+
+    const userCount = await this.userModel.countDocuments({ role: updatedRole?.name || name }).exec();
+    const resultObj: any = updatedRole?.toObject ? updatedRole.toObject() : updatedRole;
+    if (resultObj) resultObj.userCount = userCount;
+
+    return { success: !!updatedRole, data: resultObj };
   }
 
-  async createRole(roleData: any) {
-    const { name, description } = roleData;
-    if (!name) {
-      throw new RpcException('Role name is required');
+  async createRole(roleData: { name: string; description?: string; permissions?: string[] }) {
+    const trimmedName = (roleData?.name || '').trim();
+    if (!trimmedName) {
+      return { success: false, message: 'Tên vai trò không được để trống.' };
     }
-    const exists = await this.roleModel.findOne({ name }).exec();
+    const exists = await this.roleModel
+      .findOne({ name: { $regex: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } })
+      .exec();
     if (exists) {
-      throw new RpcException('Role name already exists');
+      return { success: false, message: `Vai trò "${exists.name}" đã tồn tại.` };
     }
+
     const newRole = new this.roleModel({
-      name,
-      description,
-      permissions: []
+      name: trimmedName,
+      description: (roleData.description || '').trim(),
+      permissions: Array.isArray(roleData.permissions) ? roleData.permissions : [],
     });
-    return await newRole.save();
+    const saved = await newRole.save();
+    const obj: any = saved.toObject ? saved.toObject() : { ...saved };
+    obj.userCount = 0;
+    return { success: true, data: obj };
   }
 
-  async deleteRole(name: string) {
-    const protectedRoles = ['Admin', 'Manager', 'Staff'];
-    if (protectedRoles.includes(name)) {
-      throw new RpcException('Cannot delete default system roles');
+  async deleteRole(name: string, reassignTo?: string) {
+    const targetRole = await this.roleModel.findOne({ name }).exec();
+    if (!targetRole) {
+      return { success: false, message: `Không tìm thấy vai trò "${name}".` };
+    }
+    if (this.isRootAdminRole(targetRole)) {
+      return { success: false, message: 'Không thể xóa vai trò Quản trị viên hệ thống.' };
     }
 
-    // Check if assigned to any user
-    const usersWithRole = await this.userModel.findOne({ role: name }).exec();
-    if (usersWithRole) {
-      throw new RpcException('Cannot delete role because it is currently assigned to user(s)');
+    const userCount = await this.userModel.countDocuments({ role: name }).exec();
+    if (userCount > 0) {
+      if (!reassignTo || reassignTo === name) {
+        return {
+          success: false,
+          message: `Vai trò "${name}" đang có ${userCount} tài khoản sử dụng. Vui lòng chọn vai trò thay thế trước khi xóa.`,
+        };
+      }
+      const fallbackRole = await this.roleModel.findOne({ name: reassignTo }).exec();
+      if (!fallbackRole) {
+        return { success: false, message: `Vai trò thay thế "${reassignTo}" không tồn tại.` };
+      }
+      await this.userModel.updateMany(
+        { role: name },
+        { $set: { role: reassignTo }, $unset: { permissions: '' } }
+      ).exec();
     }
 
-    const deletedRole = await this.roleModel.findOneAndDelete({ name }).exec();
-    if (!deletedRole) {
-      throw new RpcException('Role not found');
-    }
-    return { success: true, message: 'Role deleted successfully' };
+    await this.roleModel.findOneAndDelete({ _id: targetRole._id }).exec();
+    return { success: true, message: `Đã xóa vai trò "${name}" thành công!` };
   }
 
   async getPermissions() {
@@ -291,6 +415,7 @@ export class UsersService implements OnModuleInit {
       const userObj: any = user.toObject ? user.toObject() : { ...user };
       delete userObj.password;
       userObj.id = userObj._id ? userObj._id.toString() : id;
+      userObj.isSystemAdmin = await this.isRootAdminRoleName(userObj.role);
       userObj.permissions = (userObj.permissions !== null && userObj.permissions !== undefined)
         ? userObj.permissions
         : await this.findPermissionsForRole(userObj.role);
@@ -352,6 +477,7 @@ export class UsersService implements OnModuleInit {
 
       const userObj: any = updatedUser.toObject ? updatedUser.toObject() : updatedUser;
       userObj.id = userObj._id ? userObj._id.toString() : id;
+      userObj.isSystemAdmin = await this.isRootAdminRoleName(userObj.role);
       userObj.permissions = (userObj.permissions !== null && userObj.permissions !== undefined)
         ? userObj.permissions
         : await this.findPermissionsForRole(userObj.role);

@@ -31,10 +31,12 @@ export class OrdersService {
     const count = await this.orderRepository.count();
     const orderNumber = `ORD-${today}-${String(count + 1).padStart(3, '0')}`;
 
-    const totalAmount = (dto.items || []).reduce(
+    const shippingFee = Number(dto.shippingFee) || (dto.priority === 'HIGH' ? 100000 : 50000);
+    const itemsTotal = (dto.items || []).reduce(
       (sum, item) => sum + item.quantity * (item.unitPrice || 0),
       0,
     );
+    const totalAmount = itemsTotal + (dto.items && dto.items.length > 0 ? shippingFee : 0);
 
     const sagaTrace = [
       {
@@ -52,6 +54,7 @@ export class OrdersService {
     orderEntity.shippingAddress = dto.shippingAddress || 'Nhận tại siêu thị';
     orderEntity.orderType = dto.orderType || OrderType.RETAIL_ONLINE;
     orderEntity.priority = dto.priority || 'NORMAL';
+    orderEntity.shippingFee = shippingFee;
     orderEntity.status = OrderStatus.PENDING;
     orderEntity.totalAmount = totalAmount;
     orderEntity.notes = dto.notes || '';
@@ -317,5 +320,68 @@ export class OrdersService {
       });
     }
     return this.orderRepository.save(order);
+  }
+
+  async cancelOrder(
+    orderId: string,
+  ): Promise<{ success: boolean; message?: string; data?: Order }> {
+    const order = await this.findOneOrder(orderId);
+    if (!order) {
+      return { success: false, message: 'Không tìm thấy đơn hàng.' };
+    }
+    if (order.status === OrderStatus.DISPATCHED) {
+      return { success: false, message: 'Đơn hàng đã xuất xưởng Cửa 02, không thể hủy.' };
+    }
+    if (order.status === OrderStatus.CANCELLED) {
+      return { success: false, message: 'Đơn hàng đã được hủy trước đó.' };
+    }
+
+    const releasableStatuses = [
+      OrderStatus.PENDING,
+      OrderStatus.ALLOCATED,
+      OrderStatus.PICKING,
+      OrderStatus.PACKED,
+    ];
+
+    if (releasableStatuses.includes(order.status)) {
+      for (const item of order.items || []) {
+        const qtyToRelease = Number(item.allocatedQuantity) || 0;
+        if (qtyToRelease > 0) {
+          try {
+            await firstValueFrom(
+              this.inventoryClient.send('stock.release_reserve', {
+                productId: item.productId,
+                quantity: qtyToRelease,
+              }),
+            );
+          } catch (err: any) {
+            this.logger.error(
+              `Lỗi giải phóng giữ chỗ tồn kho khi hủy đơn ${order.orderNumber}: ${err?.message}`,
+            );
+            return {
+              success: false,
+              message: `Không thể giải phóng giữ chỗ tồn kho: ${err?.message}`,
+            };
+          }
+          item.allocatedQuantity = 0;
+          await this.orderItemRepository.save(item);
+        }
+      }
+    }
+
+    order.status = OrderStatus.CANCELLED;
+    const sagaTrace = Array.isArray(order.sagaTrace) ? [...order.sagaTrace] : [];
+    sagaTrace.push({
+      step: 'ORDER_CANCELLED',
+      action:
+        'Đơn hàng đã hủy. Saga bù trừ hoàn trả toàn bộ tồn kho giữ chỗ về trạng thái khả dụng.',
+      status: 'FAILED',
+      timestamp: new Date().toISOString(),
+    });
+    order.sagaTrace = sagaTrace;
+
+    const saved = await this.orderRepository.save(order);
+    const reloaded = (await this.findOneOrder(saved.id)) || saved;
+    return { success: true, data: reloaded };
   }
 }

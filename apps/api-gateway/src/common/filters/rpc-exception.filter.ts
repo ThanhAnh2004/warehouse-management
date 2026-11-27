@@ -35,9 +35,31 @@ export class RpcExceptionFilter implements ExceptionFilter {
       });
     }
 
-    const status = typeof exception?.status === 'number'
-      ? exception.status
-      : (typeof exception?.statusCode === 'number' ? exception.statusCode : HttpStatus.INTERNAL_SERVER_ERROR);
+    const isExplicitRpcError =
+      !isRmqError &&
+      (exception?.status === 'error' ||
+        typeof exception?.getError === 'function' ||
+        (exception?.error && typeof exception?.statusCode !== 'number'));
+
+    let status: number;
+    if (typeof exception?.status === 'number') {
+      status = exception.status;
+    } else if (typeof exception?.statusCode === 'number') {
+      status = exception.statusCode;
+    } else if (
+      isExplicitRpcError &&
+      !/TypeError|ReferenceError|QueryFailedError|ECONNREFUSED/i.test(String(rawErrorMsg))
+    ) {
+      if (/không tìm thấy|not found/i.test(String(rawErrorMsg))) {
+        status = HttpStatus.NOT_FOUND;
+      } else if (/already exists|đã tồn tại/i.test(String(rawErrorMsg))) {
+        status = HttpStatus.CONFLICT;
+      } else {
+        status = HttpStatus.BAD_REQUEST;
+      }
+    } else {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+    }
     const finalMessage =
       rawErrorMsg === 'An unexpected microservice error occurred'
         ? 'Dịch vụ Microservice xử lý không phản hồi hoặc đã xảy ra sự cố kết nối.'

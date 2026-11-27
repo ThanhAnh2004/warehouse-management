@@ -57,12 +57,14 @@ export class AuthService {
     const permissions = (user.permissions !== null && user.permissions !== undefined)
       ? user.permissions
       : await this.usersService.findPermissionsForRole(user.role);
+    const isSystemAdmin = await this.usersService.isRootAdminRoleName(user.role);
 
     // Tạo JWT token đính kèm role và permissions
     const payload = { 
       email: user.email, 
       sub: user.id, 
       role: user.role,
+      isSystemAdmin,
       permissions,
       fullname: user.fullname 
     };
@@ -89,12 +91,14 @@ export class AuthService {
     const permissions = (user.permissions !== null && user.permissions !== undefined)
       ? user.permissions
       : await this.usersService.findPermissionsForRole(user.role);
+    const isSystemAdmin = await this.usersService.isRootAdminRoleName(user.role);
 
     // Tạo token mới
     const payload = { 
       email: user.email, 
       sub: user.id, 
       role: user.role,
+      isSystemAdmin,
       permissions,
       fullname: user.fullname 
     };
@@ -131,6 +135,7 @@ export class AuthService {
           : await this.usersService.findPermissionsForRole(user.role);
         decoded.permissions = latestPermissions;
         decoded.role = user.role;
+        decoded.isSystemAdmin = await this.usersService.isRootAdminRoleName(user.role);
       }
       
       return { success: true, data: decoded };

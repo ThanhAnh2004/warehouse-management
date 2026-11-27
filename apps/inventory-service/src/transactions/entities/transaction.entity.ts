@@ -28,6 +28,18 @@ export class Transaction {
   @Column()
   productId: string;
 
+  @Column({ nullable: true })
+  productName: string;
+
+  @Column({ nullable: true })
+  productSku: string;
+
+  @Column({ nullable: true })
+  productUnit: string;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  unitPrice: number;
+
   @Column('int')
   quantity: number;
 

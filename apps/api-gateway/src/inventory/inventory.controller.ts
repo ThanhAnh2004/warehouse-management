@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Inject, Param, Patch, Delete, Post, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Delete, Post, Request, UseGuards, UseInterceptors, UploadedFile, Query, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermissions } from '../common/decorators/permissions.decorator';
+import { RequirePermissions, RequireAnyPermissions } from '../common/decorators/permissions.decorator';
 import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -151,27 +151,33 @@ export class InventoryController {
   }
 
   @Get('products')
-  @RequirePermissions('products:read')
+  @RequireAnyPermissions('products:read', 'stock:read', 'dashboard:read', 'reports:read', 'orders:read', 'orders:create', 'procurement:read', 'procurement:create', 'adjustments:read', 'adjustments:create', 'locations:read', 'locations:allocate', 'transactions:read')
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'sortBy', required: false, type: String })
+  @ApiQuery({ name: 'sortOrder', required: false, type: String })
   findAllProducts(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('search') search: string = '',
     @Query('category') category: string = '',
+    @Query('sortBy') sortBy: string = 'createdAt',
+    @Query('sortOrder') sortOrder: string = 'DESC',
   ) {
     return this.inventoryClient.send('product.find_all', {
       page: parseInt(page, 10) || 1,
       limit: parseInt(limit, 10) || 10,
       search,
       category,
+      sortBy,
+      sortOrder,
     });
   }
 
   @Get('products/:sku')
-  @RequirePermissions('products:read')
+  @RequireAnyPermissions('products:read', 'stock:read')
   findProductBySku(@Param('sku') sku: string) {
     return this.inventoryClient.send('product.find_by_sku', sku);
   }
@@ -182,20 +188,36 @@ export class InventoryController {
     return this.inventoryClient.send('product.delete_by_sku', sku);
   }
 
+  @Post('quick-inbound')
+  @RequirePermissions('stock:update')
+  async quickInbound(@Body() body: { productId: string; quantity: number; note?: string; locationTo?: string }, @Request() req) {
+    const qty = Math.max(1, Number(body.quantity) || 1);
+    return firstValueFrom(
+      this.inventoryClient.send('transaction.create', {
+        productId: body.productId,
+        type: 'INBOUND',
+        quantity: qty,
+        locationTo: body.locationTo || 'DEFAULT_WAREHOUSE',
+        note: body.note || 'Nhập bổ sung tồn kho nhanh',
+        createdBy: req.user?.sub || 'Quản trị viên',
+      }),
+    );
+  }
+
   @Get('stock/:productId')
-  @RequirePermissions('stock:read')
+  @RequireAnyPermissions('stock:read', 'products:read')
   getStock(@Param('productId') productId: string) {
     return this.inventoryClient.send('inventory.get_stock', productId);
   }
 
   @Get('reorder/:productId')
-  @RequirePermissions('stock:read')
+  @RequireAnyPermissions('stock:read', 'products:read', 'forecast:read')
   getReorderInfo(@Param('productId') productId: string) {
     return this.inventoryClient.send('inventory.get_reorder_info', productId);
   }
 
   @Get('decision/:productId')
-  @RequirePermissions('stock:read')
+  @RequireAnyPermissions('forecast:read', 'stock:read', 'products:read')
   getInventoryDecision(
     @Param('productId') productId: string,
     @Query('leadTimeDays') leadTimeDays?: number,
@@ -211,31 +233,31 @@ export class InventoryController {
   }
 
   @Get('locations')
-  @RequirePermissions('stock:read')
+  @RequireAnyPermissions('locations:read', 'locations:allocate', 'stock:read', 'dashboard:read', 'reports:read', 'transactions:read')
   getAllLocations() {
     return this.inventoryClient.send('location.find_all', {});
   }
 
   @Post('locations')
-  @RequirePermissions('products:create')
+  @RequirePermissions('locations:create')
   createLocation(@Body() dto: any) {
     return this.inventoryClient.send('location.create', dto);
   }
 
   @Patch('locations/:id')
-  @RequirePermissions('products:update')
+  @RequirePermissions('locations:update')
   updateLocation(@Param('id') id: string, @Body() dto: any) {
     return this.inventoryClient.send('location.update', { id, ...dto });
   }
 
   @Delete('locations/:id')
-  @RequirePermissions('products:delete')
+  @RequirePermissions('locations:delete')
   deleteLocation(@Param('id') id: string) {
     return this.inventoryClient.send('location.delete', id);
   }
 
   @Get('locations/suggest-putaway')
-  @RequirePermissions('stock:read')
+  @RequireAnyPermissions('locations:read', 'locations:allocate')
   suggestPutaway(@Query('productId') productId: string, @Query('quantity') quantity: string) {
     return this.inventoryClient.send('location.suggest_putaway', {
       productId,
@@ -244,14 +266,14 @@ export class InventoryController {
   }
 
   @Get('locations/unallocated')
-  @RequirePermissions('stock:read')
+  @RequireAnyPermissions('locations:read', 'locations:allocate')
   getUnallocatedProducts() {
     return this.inventoryClient.send('location.unallocated_products', {});
   }
 
   @Post('locations/relocate')
-  @RequirePermissions('products:update')
-  async relocateStock(@Body() dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }) {
+  @RequirePermissions('locations:allocate')
+  async relocateStock(@Body() dto: { productId: string; fromLocation: string; toLocation: string; quantity: number }, @Request() req) {
     const res = await firstValueFrom(this.inventoryClient.send('location.relocate_stock', dto));
     try {
       await firstValueFrom(this.inventoryClient.send('transaction.create', {
@@ -261,7 +283,7 @@ export class InventoryController {
         locationFrom: dto.fromLocation,
         locationTo: dto.toLocation,
         note: `Điều chuyển sản phẩm từ Kệ ${dto.fromLocation} sang Kệ ${dto.toLocation}`,
-        createdBy: 'Quản trị viên',
+        createdBy: req.user?.sub || 'Quản trị viên',
       }));
     } catch (e) {
       // Ignore
@@ -269,9 +291,21 @@ export class InventoryController {
     return res;
   }
 
+  @Post('locations/allocate')
+  @RequirePermissions('locations:allocate')
+  allocateFromQueue(
+    @Body() dto: { productId: string; toLocation: string; quantity: number },
+    @Request() req,
+  ) {
+    return this.inventoryClient.send('location.allocate_from_queue', {
+      ...dto,
+      createdBy: req.user?.email || req.user?.sub || 'Quản trị viên',
+    });
+  }
+
   @Post('locations/add-stock')
-  @RequirePermissions('products:update')
-  async addStockToLocation(@Body() dto: { productId: string; location: string; quantity: number }) {
+  @RequirePermissions('locations:allocate')
+  async addStockToLocation(@Body() dto: { productId: string; location: string; quantity: number }, @Request() req) {
     const qty = Number(dto.quantity) || 0;
     const res = await firstValueFrom(this.inventoryClient.send('inventory.update_stock', {
       productId: dto.productId,
@@ -287,7 +321,7 @@ export class InventoryController {
           quantity: qty,
           locationTo: dto.location,
           note: `Xếp thêm sản phẩm trực tiếp vào Kệ ${dto.location}`,
-          createdBy: 'Quản trị viên',
+          createdBy: req.user?.sub || 'Quản trị viên',
         }));
       } catch (e) {
         // Ignore

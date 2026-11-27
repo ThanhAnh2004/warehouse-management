@@ -51,6 +51,9 @@ export class Order {
   @Column({ default: 'NORMAL' })
   priority: 'HIGH' | 'NORMAL';
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 50000, nullable: true })
+  shippingFee: number;
+
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   totalAmount: number;
 

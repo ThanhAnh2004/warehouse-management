@@ -13,6 +13,9 @@ export class Role {
 
   @Prop({ type: [String], default: [] })
   permissions: string[];
+
+  @Prop({ default: false })
+  isSystemAdmin?: boolean;
 }
 
 export const RoleSchema = SchemaFactory.createForClass(Role);

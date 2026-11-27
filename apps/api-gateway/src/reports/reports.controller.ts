@@ -2,7 +2,7 @@ import { Controller, Get, Inject, Query, UseGuards } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuthGuard } from '../auth/auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermissions } from '../common/decorators/permissions.decorator';
+import { RequireAnyPermissions } from '../common/decorators/permissions.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Reports')
@@ -15,13 +15,13 @@ export class ReportsController {
   ) {}
 
   @Get('summary')
-  @RequirePermissions('reports:read')
+  @RequireAnyPermissions('dashboard:read', 'reports:read')
   getSummaryReport() {
     return this.reportingClient.send('report.get_summary', {});
   }
 
   @Get('forecast-trends')
-  @RequirePermissions('reports:read')
+  @RequireAnyPermissions('dashboard:read', 'reports:read')
   @ApiQuery({ name: 'topN', required: false, type: Number })
   @ApiQuery({ name: 'days', required: false, type: Number })
   getForecastTrends(
@@ -35,7 +35,7 @@ export class ReportsController {
   }
 
   @Get('analytics')
-  @RequirePermissions('reports:read')
+  @RequireAnyPermissions('dashboard:read', 'reports:read')
   @ApiQuery({ name: 'trendDays', required: false, type: Number })
   getAnalytics(@Query('trendDays') trendDays: string = '14') {
     return this.reportingClient.send('report.get_analytics', {

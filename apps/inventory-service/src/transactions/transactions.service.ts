@@ -1,6 +1,6 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { Transaction, TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { SagaInstance, SagaStatus, SagaType } from './entities/saga-instance.entity';
 import { Inventory } from '../stock/entities/inventory.entity';
@@ -12,8 +12,15 @@ import { firstValueFrom } from 'rxjs';
 
 const DEFAULT_WAREHOUSE = 'A1-L1';
 
+export interface CreateTransactionOptions {
+  releaseReservedQuantity?: number;
+  unitPrice?: number;
+  skipStockMutation?: boolean;
+  manager?: EntityManager;
+}
+
 @Injectable()
-export class TransactionsService {
+export class TransactionsService implements OnModuleInit {
   private readonly logger = new Logger(TransactionsService.name);
 
   constructor(
@@ -31,14 +38,41 @@ export class TransactionsService {
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
+  async onModuleInit() {
+    await this.backfillProductSnapshots();
+  }
+
+  private async backfillProductSnapshots() {
+    try {
+      const updated = await this.dataSource.query(`
+        UPDATE transactions t
+        SET "productName" = p.name,
+            "productSku" = p.sku,
+            "productUnit" = COALESCE(p.unit, 'Chiếc'),
+            "unitPrice" = COALESCE(p.price, 0)
+        FROM products p
+        WHERE t."productId" = p.id::text
+          AND t."productName" IS NULL
+      `);
+      if (updated?.[1] > 0) {
+        this.logger.log(`Đã bổ sung snapshot sản phẩm cho ${updated[1]} bản ghi lịch sử giao dịch.`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Không thể backfill snapshot giao dịch: ${e?.message}`);
+    }
+  }
+
   /**
    * Tạo giao dịch kho với bảo đảm toàn vẹn dữ liệu ACID trong cùng 1 Database context.
    * Không còn cần Saga bù trừ phân tán - nếu có bất kỳ lỗi nào, DB tự động ROLLBACK.
    */
-  async create(createTransactionDto: CreateTransactionDto): Promise<Transaction> {
+  async create(
+    createTransactionDto: CreateTransactionDto,
+    options?: CreateTransactionOptions,
+  ): Promise<Transaction> {
     this.validateBusinessRules(createTransactionDto);
 
-    return await this.dataSource.transaction(async (manager) => {
+    const runInTransaction = async (manager: EntityManager) => {
       const { type, productId, quantity, locationFrom, locationTo, createdBy, note } = createTransactionDto;
 
       // 1. Kiểm tra sản phẩm tồn tại
@@ -57,11 +91,19 @@ export class TransactionsService {
         },
       ];
 
-      // 2. Cập nhật tồn kho theo từng loại giao dịch
+      // 2. Cập nhật tồn kho theo từng loại giao dịch (bỏ qua nếu nghiệp vụ gọi đã mutate nguyên khối trước đó)
       let targetLocationForAlert: string | null = null;
       let newStockForAlert: number = 0;
 
-      switch (type) {
+      if (options?.skipStockMutation) {
+        stepLogs.push({
+          step: 'STOCK_PUTAWAY_ACID',
+          action: `Phân bổ ${quantity} từ [${locationFrom || 'DEFAULT_WAREHOUSE'}] vào Kệ [${locationTo || DEFAULT_WAREHOUSE}] thành công.`,
+          status: 'SUCCESS',
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        switch (type) {
         case TransactionType.INBOUND: {
           const locCode = locationTo || DEFAULT_WAREHOUSE;
           targetLocationForAlert = locCode;
@@ -105,6 +147,12 @@ export class TransactionsService {
           }
 
           inv.currentQuantity -= quantity;
+          if (options?.releaseReservedQuantity) {
+            inv.reservedQuantity = Math.max(
+              0,
+              (inv.reservedQuantity || 0) - options.releaseReservedQuantity,
+            );
+          }
           await manager.save(Inventory, inv);
           newStockForAlert = inv.currentQuantity;
 
@@ -197,6 +245,7 @@ export class TransactionsService {
 
         default:
           throw new RpcException(`Loại giao dịch không hỗ trợ: ${type}`);
+        }
       }
 
       // 3. Tạo bản ghi Saga Instance để lưu vết tiến trình cho giao diện
@@ -217,9 +266,15 @@ export class TransactionsService {
       });
       const savedSaga = await manager.save(SagaInstance, saga);
 
-      // 4. Ghi nhận Transaction
+      // 4. Ghi nhận Transaction kèm snapshot sản phẩm
+      const resolvedUnitPrice =
+        options?.unitPrice !== undefined ? Number(options.unitPrice) : Number(product.price || 0);
       const tx = manager.create(Transaction, {
         ...createTransactionDto,
+        productName: product.name,
+        productSku: product.sku,
+        productUnit: product.unit || 'Chiếc',
+        unitPrice: resolvedUnitPrice,
         status: TransactionStatus.COMPLETED,
         sagaId: savedSaga.id,
       });
@@ -231,11 +286,17 @@ export class TransactionsService {
 
       this.logger.log(`[ACID Transaction] ${type} for Product ${product.name} (Qty: ${quantity}) committed successfully. Tx ID: ${savedTx.id}`);
 
-      // 5. Kiểm tra và kích hoạt cảnh báo tồn kho bất đồng bộ (ngoài transaction DB)
-      this.checkAndEmitAlert(product, newStockForAlert);
+      // 5. Kiểm tra và kích hoạt cảnh báo tồn kho bất đồng bộ (chỉ khi giao dịch làm thay đổi tổng tồn)
+      if (!options?.skipStockMutation) {
+        this.checkAndEmitAlert(product, newStockForAlert);
+      }
 
       return savedTx;
-    });
+    };
+
+    return options?.manager
+      ? await runInTransaction(options.manager)
+      : await this.dataSource.transaction(runInTransaction);
   }
 
   private async checkAndEmitAlert(product: Product, currentStock: number) {
@@ -321,12 +382,12 @@ export class TransactionsService {
       const searchProductIds = (payload as any).productIds || [];
       if (Array.isArray(searchProductIds) && searchProductIds.length > 0) {
         queryBuilder.andWhere(
-          '(tx.note ILIKE :s OR CAST(tx.type AS text) ILIKE :s OR CAST(tx.status AS text) ILIKE :s OR tx.productId IN (:...searchProductIds))',
+          '(tx.note ILIKE :s OR tx.productName ILIKE :s OR tx.productSku ILIKE :s OR CAST(tx.type AS text) ILIKE :s OR CAST(tx.status AS text) ILIKE :s OR tx.productId IN (:...searchProductIds))',
           { s, searchProductIds }
         );
       } else {
         queryBuilder.andWhere(
-          '(tx.note ILIKE :s OR CAST(tx.type AS text) ILIKE :s OR CAST(tx.status AS text) ILIKE :s OR tx.productId ILIKE :s)',
+          '(tx.note ILIKE :s OR tx.productName ILIKE :s OR tx.productSku ILIKE :s OR CAST(tx.type AS text) ILIKE :s OR CAST(tx.status AS text) ILIKE :s OR tx.productId ILIKE :s)',
           { s }
         );
       }
