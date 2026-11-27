@@ -113,7 +113,57 @@ export class NotificationService {
   }
 
   async getAlerts() {
-    return this.alertModel.find().sort({ createdAt: -1 }).limit(50).exec();
+    return this.alertModel.find().sort({ isRead: 1, updatedAt: -1, createdAt: -1 }).limit(100).exec();
+  }
+
+  async syncLiveLowStock(lowStockItems: any[] = []) {
+    const activeIds = new Set(
+      lowStockItems.map((it) => it.productId).filter(Boolean),
+    );
+
+    // 1. Remove stale LOW_STOCK alerts whose product was restocked above threshold or deleted
+    await this.alertModel
+      .deleteMany({
+        alertType: 'LOW_STOCK',
+        productId: { $nin: Array.from(activeIds) },
+      })
+      .exec();
+
+    // 2. Upsert live alerts for every active low-stock product
+    for (const item of lowStockItems) {
+      if (!item?.productId) continue;
+      const currentQty = Number(item.currentQuantity ?? item.newStock ?? 0);
+      const threshold = Number(item.minStockLevel ?? item.threshold ?? 10);
+      const productName = item.name || item.productName || item.sku || item.productId;
+      const message = `Sản phẩm ${productName} đã giảm xuống dưới mức tồn kho tối thiểu (Hiện tại: ${currentQty} / Tối thiểu: ${threshold}).`;
+
+      const existing = await this.alertModel
+        .findOne({ productId: item.productId, alertType: 'LOW_STOCK' })
+        .sort({ createdAt: -1 })
+        .exec();
+
+      if (existing) {
+        const droppedLower = currentQty < (existing.currentStock ?? currentQty);
+        existing.productName = productName;
+        existing.currentStock = currentQty;
+        existing.threshold = threshold;
+        existing.message = message;
+        if (droppedLower) existing.isRead = false;
+        await existing.save();
+      } else {
+        await new this.alertModel({
+          productId: item.productId,
+          productName,
+          alertType: 'LOW_STOCK',
+          currentStock: currentQty,
+          threshold,
+          message,
+          isRead: false,
+        }).save();
+      }
+    }
+
+    return this.getAlerts();
   }
 
   async markAsRead(id: string) {

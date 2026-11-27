@@ -335,7 +335,7 @@ export class SystemController {
   }
 
   @Post('message-bus/purge-queue')
-  @RequirePermissions('system:read')
+  @RequirePermissions('system:manage')
   async purgeQueue(@Body('queueName') queueName: string) {
     if (!queueName) return { success: false, message: 'Queue name is required' };
     const rmqHost = this.configService.get<string>('RABBITMQ_HOST', 'warehouse_rabbitmq');
@@ -353,7 +353,7 @@ export class SystemController {
   }
 
   @Post('message-bus/requeue-dlq')
-  @RequirePermissions('system:read')
+  @RequirePermissions('system:manage')
   async requeueDlq(@Body('dlqName') dlqName: string, @Body('targetQueue') targetQueue: string) {
     if (!dlqName || !targetQueue) return { success: false, message: 'dlqName and targetQueue are required' };
     const rmqHost = this.configService.get<string>('RABBITMQ_HOST', 'warehouse_rabbitmq');

@@ -23,7 +23,8 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('You do not have permission (No role assigned)');
     }
 
-    const hasRole = requiredRoles.includes(user.role);
+    const isRootAdmin = Boolean(user.isSystemAdmin) || /^(admin|quản trị viên)$/i.test((user.role || '').trim());
+    const hasRole = requiredRoles.includes(user.role) || (requiredRoles.includes('Admin') && isRootAdmin);
     if (!hasRole) {
        throw new ForbiddenException(`You do not have permission. Requires one of: ${requiredRoles.join(', ')}`);
     }

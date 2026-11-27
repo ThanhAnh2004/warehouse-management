@@ -3,10 +3,29 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { Inventory } from '../stock/entities/inventory.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
+
+const CATEGORY_NORMALIZATION_MAP: Record<string, string> = {
+  Smartphones: 'Điện thoại & Tablet',
+  Tablets: 'Điện thoại & Tablet',
+  Laptops: 'Laptop & Máy tính',
+  TVs: 'Tivi & Thiết bị giải trí',
+  Monitors: 'Tivi & Thiết bị giải trí',
+  Consoles: 'Tivi & Thiết bị giải trí',
+  Speakers: 'Tivi & Thiết bị giải trí',
+  Cameras: 'Tivi & Thiết bị giải trí',
+  Accessories: 'Phụ kiện & Thiết bị đeo',
+  Wearables: 'Phụ kiện & Thiết bị đeo',
+  Headphones: 'Phụ kiện & Thiết bị đeo',
+  Drones: 'Phụ kiện & Thiết bị đeo',
+  'PC Components': 'Linh kiện & Bán dẫn',
+};
+
+const VALID_IPHONE_IMAGE = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400';
 
 @Injectable()
 export class ProductsService implements OnModuleInit {
@@ -17,11 +36,42 @@ export class ProductsService implements OnModuleInit {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+    @Inject('SUPPLIER_SERVICE') private readonly supplierClient: ClientProxy,
   ) {}
 
   async onModuleInit() {
     await this.seed50Products();
+    await this.normalizeLegacyCategoriesAndBrokenImages();
+  }
+
+  private async normalizeLegacyCategoriesAndBrokenImages() {
+    try {
+      const all = await this.productRepository.find();
+      let updated = 0;
+      for (const prod of all) {
+        let dirty = false;
+        if (prod.category && CATEGORY_NORMALIZATION_MAP[prod.category]) {
+          prod.category = CATEGORY_NORMALIZATION_MAP[prod.category];
+          dirty = true;
+        }
+        if (prod.imageUrl && prod.imageUrl.includes('photo-1695048133142-1a20484d2569')) {
+          prod.imageUrl = VALID_IPHONE_IMAGE;
+          dirty = true;
+        }
+        if (dirty) {
+          await this.productRepository.save(prod);
+          updated++;
+        }
+      }
+      if (updated > 0) {
+        this.logger.log(`Đã chuẩn hóa danh mục & ảnh đại diện cho ${updated} sản phẩm.`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`Không thể chuẩn hóa danh mục/ảnh sản phẩm: ${e?.message}`);
+    }
   }
 
   async seed50Products() {
@@ -36,7 +86,7 @@ export class ProductsService implements OnModuleInit {
 
       const sampleProducts = [
         // 1. Điện thoại & Tablet (PHONE_TABLET) -> Dãy A
-        { sku: 'APP-IP15PM-256', name: 'iPhone 15 Pro Max 256GB VN/A', price: 34990000, category: 'Điện thoại & Tablet', unit: 'Chiếc', imageUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400', minStockLevel: 15, location: 'A01', quantity: 85 },
+        { sku: 'APP-IP15PM-256', name: 'iPhone 15 Pro Max 256GB VN/A', price: 34990000, category: 'Điện thoại & Tablet', unit: 'Chiếc', imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400', minStockLevel: 15, location: 'A01', quantity: 85 },
         { sku: 'SAM-S24U-512', name: 'Samsung Galaxy S24 Ultra 512GB', price: 37490000, category: 'Điện thoại & Tablet', unit: 'Chiếc', imageUrl: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400', minStockLevel: 10, location: 'A02', quantity: 60 },
         { sku: 'APP-IPAD-M4-256', name: 'iPad Pro M4 11 inch 256GB Wi-Fi', price: 28990000, category: 'Điện thoại & Tablet', unit: 'Chiếc', imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400', minStockLevel: 10, location: 'A02', quantity: 45 },
         { sku: 'XIA-14U-512', name: 'Xiaomi 14 Ultra 512GB Leica', price: 32990000, category: 'Điện thoại & Tablet', unit: 'Chiếc', imageUrl: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400', minStockLevel: 10, location: 'A02', quantity: 30 },
@@ -188,8 +238,8 @@ export class ProductsService implements OnModuleInit {
   ): Promise<{ data: any[], total: number, page: number, limit: number }> {
     const skip = (page - 1) * limit;
     
-    // Build query conditions
-    const whereConditions: any = {};
+    // Build query conditions (exclude soft-archived products)
+    const whereConditions: any = { isActive: true };
     if (category && category !== 'ALL') {
       whereConditions.category = ILike(`%${category}%`);
     }
@@ -261,7 +311,7 @@ export class ProductsService implements OnModuleInit {
   }
 
   async findBySku(sku: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { sku } });
+    const product = await this.productRepository.findOne({ where: { sku, isActive: true } });
     if (!product) {
       throw new RpcException('Product not found');
     }
@@ -276,6 +326,15 @@ export class ProductsService implements OnModuleInit {
     // Assign updated values
     Object.assign(product, productData);
     const savedProduct = await this.productRepository.save(product);
+
+    // Sync updated name/SKU asynchronously to Supplier Service catalog
+    try {
+      this.supplierClient.emit('product.updated', {
+        productId: savedProduct.id,
+        sku: savedProduct.sku,
+        name: savedProduct.name,
+      });
+    } catch (e) {}
 
     if (quantity !== undefined && quantity !== null) {
       let inventory = await this.inventoryRepository.findOne({ where: { productId: product.id } });
@@ -310,11 +369,28 @@ export class ProductsService implements OnModuleInit {
     return savedProduct;
   }
 
-  async delete(sku: string): Promise<{ deleted: boolean }> {
-    const result = await this.productRepository.delete({ sku });
-    if (result.affected === 0) {
+  async delete(sku: string): Promise<{ deleted: boolean; archived?: boolean }> {
+    const product = await this.productRepository.findOne({ where: { sku, isActive: true } });
+    if (!product) {
       throw new RpcException('Product not found');
     }
-    return { deleted: true };
+
+    // Remove dangling catalog entries from Supplier Service regardless of hard-delete vs archive
+    try {
+      this.supplierClient.emit('product.deleted', { productId: product.id });
+    } catch (e) {}
+
+    const txCount = await this.transactionRepository.count({ where: { productId: product.id } });
+    await this.inventoryRepository.delete({ productId: product.id });
+
+    if (txCount > 0) {
+      product.isActive = false;
+      product.sku = `${product.sku}__ARCHIVED_${Date.now()}`;
+      await this.productRepository.save(product);
+      return { deleted: true, archived: true };
+    }
+
+    await this.productRepository.delete({ id: product.id });
+    return { deleted: true, archived: false };
   }
 }

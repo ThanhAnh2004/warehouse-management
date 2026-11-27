@@ -48,4 +48,7 @@ export class Product {
 
   @Column({ type: 'int', default: 20 })
   minStockLevel: number;
+
+  @Column({ default: true })
+  isActive: boolean;
 }

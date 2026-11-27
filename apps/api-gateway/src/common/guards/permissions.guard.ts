@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+import { PERMISSIONS_KEY, ANY_PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -11,25 +11,46 @@ export class PermissionsGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+    const anyPermissions = this.reflector.getAllAndOverride<string[]>(ANY_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (
+      (!requiredPermissions || requiredPermissions.length === 0) &&
+      (!anyPermissions || anyPermissions.length === 0)
+    ) {
       return true;
     }
 
     const { user } = context.switchToHttp().getRequest();
 
-    if (!user || !user.permissions) {
-      throw new ForbiddenException('Access denied. No permissions assigned.');
+    if (!user) {
+      throw new ForbiddenException('Access denied. Unauthenticated user.');
     }
 
-    const hasPermission = requiredPermissions.every((perm) =>
-      user.permissions.includes(perm)
-    );
+    if (user.isSystemAdmin || /^(admin|quản trị viên)$/i.test((user.role || '').trim())) {
+      return true;
+    }
 
-    if (!hasPermission) {
-      throw new ForbiddenException(
-        `Access denied. Missing required permissions: ${requiredPermissions.join(', ')}`
-      );
+    const userPerms = Array.isArray(user.permissions) ? user.permissions : [];
+
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      const hasAll = requiredPermissions.every((perm) => userPerms.includes(perm));
+      if (!hasAll) {
+        throw new ForbiddenException(
+          `Access denied. Missing required permissions: ${requiredPermissions.join(', ')}`,
+        );
+      }
+    }
+
+    if (anyPermissions && anyPermissions.length > 0) {
+      const hasAny = anyPermissions.some((perm) => userPerms.includes(perm));
+      if (!hasAny) {
+        throw new ForbiddenException(
+          `Access denied. Missing one of required permissions: ${anyPermissions.join(', ')}`,
+        );
+      }
     }
 
     return true;

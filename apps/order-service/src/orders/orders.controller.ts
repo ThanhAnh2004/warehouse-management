@@ -42,4 +42,9 @@ export class OrdersController {
   async dispatchOrder(@Payload() orderId: string) {
     return this.ordersService.dispatchOrder(orderId);
   }
+
+  @MessagePattern('order.cancel')
+  async cancelOrder(@Payload() orderId: string) {
+    return this.ordersService.cancelOrder(orderId);
+  }
 }
